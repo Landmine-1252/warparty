@@ -128,6 +128,8 @@ ghcr.io/landmine-1252/warparty
 
 The workflow also adds OCI labels, uses GitHub Actions cache, and creates a build provenance attestation.
 
+If publishing fails with `permission_denied: write_package`, open the package settings for `ghcr.io/landmine-1252/warparty` and grant `Landmine-1252/warparty` write access under Actions access.
+
 ## Current Limitations
 
 - No Alembic migrations yet; first version uses `Base.metadata.create_all`.

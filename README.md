@@ -104,6 +104,8 @@ For the GitHub project `https://github.com/Landmine-1252/warparty`, the image is
 ghcr.io/landmine-1252/warparty
 ```
 
+If GHCR rejects the push with `permission_denied: write_package`, open the package settings for `ghcr.io/landmine-1252/warparty` and grant this repository write access under Actions access.
+
 ## Notes
 
 Real-time updates are in-process. They work for single-container deployments, but they are not distributed across multiple containers. Add Redis, Postgres pub/sub, or another shared event bus before scaling horizontally.
