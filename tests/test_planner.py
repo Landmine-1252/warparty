@@ -53,7 +53,7 @@ def test_future_steps_do_not_advance_early() -> None:
     assert 1 in first_helltide.advancing_player_ids
 
 
-def test_bfs_minimizes_total_runs_better_than_player_by_player() -> None:
+def test_planner_minimizes_total_runs_better_than_player_by_player() -> None:
     route = compute_recommended_route(
         [
             PlayerPlan(1, "Cipher", ("lair_boss", "helltide")),
@@ -74,6 +74,47 @@ def test_tie_breakers_are_deterministic_by_activity_order() -> None:
     )
 
     assert [step.activity_key for step in route] == ["helltide", "pit"]
+
+
+def test_tie_breaker_prefers_longer_remaining_plan_before_activity_order() -> None:
+    route = compute_recommended_route(
+        [
+            PlayerPlan(
+                1,
+                "Landmine",
+                ("pit", "nightmare_dungeon", "pit", "helltide", "helltide"),
+                progress_index=1,
+            ),
+            PlayerPlan(
+                2,
+                "Kaos",
+                ("helltide", "lair_boss", "pit"),
+                progress_index=2,
+            ),
+            PlayerPlan(
+                3,
+                "Cipher",
+                (
+                    "nightmare_dungeon",
+                    "lair_boss",
+                    "kurast_undercity",
+                    "helltide",
+                    "nightmare_dungeon",
+                ),
+                progress_index=3,
+            ),
+        ]
+    )
+
+    assert [step.activity_key for step in route] == [
+        "nightmare_dungeon",
+        "pit",
+        "helltide",
+        "helltide",
+        "nightmare_dungeon",
+    ]
+    assert route[0].advancing_player_names == ("Landmine",)
+    assert route[1].advancing_player_names == ("Landmine", "Kaos")
 
 
 def test_sync_instruction_keeps_party_moving_forward() -> None:

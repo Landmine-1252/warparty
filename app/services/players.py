@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models import Party, Player, utcnow
 from app.security import decode_session_cookie, verify_session_token
 from app.services.errors import ServiceError
+from app.services.parties import rotate_party_invite_code
 
 
 def get_player(db: Session, player_id: int) -> Player | None:
@@ -49,8 +50,10 @@ def remove_player_from_party(
     if target_player is None:
         raise ServiceError("Player was not found in this Warparty.")
 
+    rotate_party_invite_code(db, party)
     db.delete(target_player)
     db.commit()
+    db.refresh(party)
     db.expire(party, ["players"])
 
 

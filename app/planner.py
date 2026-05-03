@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
+from functools import lru_cache
 
 from app.constants import ACTIVITY_ORDER, activity_name
 
@@ -31,6 +31,7 @@ class RouteStep:
 @dataclass(frozen=True)
 class _Move:
     activity_key: str
+    state: tuple[int, ...]
     next_state: tuple[int, ...]
     advancing_indexes: tuple[int, ...]
     waiting_indexes: tuple[int, ...]
@@ -47,29 +48,28 @@ def compute_recommended_route(player_plans: list[PlayerPlan]) -> list[RouteStep]
 
     start = tuple(min(plan.progress_index, len(plan.activities)) for plan in active_plans)
     goal = tuple(len(plan.activities) for plan in active_plans)
-    parents: dict[tuple[int, ...], tuple[tuple[int, ...], _Move] | None] = {start: None}
-    queue: deque[tuple[int, ...]] = deque([start])
 
-    while queue:
-        state = queue.popleft()
+    @lru_cache
+    def best_path_from(state: tuple[int, ...]) -> tuple[_Move, ...] | None:
         if state == goal:
-            break
+            return ()
+
+        best_path: tuple[_Move, ...] | None = None
         for move in _candidate_moves(active_plans, state):
-            if move.next_state in parents:
+            suffix = best_path_from(move.next_state)
+            if suffix is None:
                 continue
-            parents[move.next_state] = (state, move)
-            queue.append(move.next_state)
+            candidate_path = (move, *suffix)
+            if best_path is None or _route_sort_key(candidate_path, active_plans) < _route_sort_key(
+                best_path,
+                active_plans,
+            ):
+                best_path = candidate_path
+        return best_path
 
-    if goal not in parents:
+    moves = best_path_from(start)
+    if moves is None:
         return []
-
-    moves: list[_Move] = []
-    state = goal
-    while parents[state] is not None:
-        previous_state, move = parents[state]
-        moves.append(move)
-        state = previous_state
-    moves.reverse()
 
     return [
         _route_step(step_number, move, active_plans)
@@ -96,6 +96,7 @@ def _candidate_moves(plans: list[PlayerPlan], state: tuple[int, ...]) -> list[_M
             moves.append(
                 _Move(
                     activity_key=activity_key,
+                    state=state,
                     next_state=tuple(next_state),
                     advancing_indexes=tuple(advancing),
                     waiting_indexes=tuple(waiting),
@@ -106,10 +107,28 @@ def _candidate_moves(plans: list[PlayerPlan], state: tuple[int, ...]) -> list[_M
         moves,
         key=lambda move: (
             -len(move.advancing_indexes),
+            -_advanced_remaining_work(move, plans),
             len(move.waiting_indexes),
             ACTIVITY_ORDER.index(move.activity_key),
         ),
     )
+
+
+def _route_sort_key(
+    moves: tuple[_Move, ...],
+    plans: list[PlayerPlan],
+) -> tuple[int, tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+    return (
+        len(moves),
+        tuple(-len(move.advancing_indexes) for move in moves),
+        tuple(-_advanced_remaining_work(move, plans) for move in moves),
+        tuple(len(move.waiting_indexes) for move in moves),
+        tuple(ACTIVITY_ORDER.index(move.activity_key) for move in moves),
+    )
+
+
+def _advanced_remaining_work(move: _Move, plans: list[PlayerPlan]) -> int:
+    return sum(len(plans[index].activities) - move.state[index] for index in move.advancing_indexes)
 
 
 def _route_step(step_number: int, move: _Move, plans: list[PlayerPlan]) -> RouteStep:

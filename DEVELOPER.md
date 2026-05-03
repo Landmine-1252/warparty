@@ -55,11 +55,12 @@ scripts/               local uv start scripts
 
 The planner treats every War Plan as an ordered list and searches over player progress states. A move is one activity run. A player advances only when that activity matches their current step.
 
-The BFS minimizes total remaining activity runs. Candidate moves are ordered by:
+The planner minimizes total remaining activity runs, then compares whole candidate routes with these tie-breakers:
 
 1. Most players advanced.
-2. Fewest waiting players.
-3. Stable activity order from `app.constants.ACTIVITY_ORDER`.
+2. Most remaining work advanced, so equally short routes help the current bottleneck earlier.
+3. Fewest waiting players.
+4. Stable activity order from `app.constants.ACTIVITY_ORDER`.
 
 Route rows are tagged as:
 
@@ -81,7 +82,7 @@ All progress changes are scoped to the current authenticated player. A target pr
 
 ## Party Ownership
 
-The player who creates a Warparty is stored as `leader_player_id`. The leader can remove other players from the party, which deletes that player's War Plan and frees the slot for a future join. The leader cannot remove themselves through this first-version flow.
+The player who creates a Warparty is stored as `leader_player_id`. The leader can remove other players from the party, which deletes that player's War Plan, rotates the invite code, and frees the slot for a future join. The leader cannot remove themselves through this first-version flow.
 
 Leader removal controls are intentionally quiet: the remove button appears when the party is full or when a player is stale according to `WARPARTY_STALE_PLAYER_MINUTES`. A leader can transfer leadership to another current player; non-leaders can leave and free their own slot. Leaders must transfer leadership before leaving.
 

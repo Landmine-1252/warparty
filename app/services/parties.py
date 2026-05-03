@@ -84,6 +84,11 @@ def party_is_full(party: Party, max_players: int | None = None) -> bool:
     return len(party.players) >= max_slots
 
 
+def rotate_party_invite_code(db: Session, party: Party) -> str:
+    party.invite_code = _unique_invite_code(db, current_invite_code=party.invite_code)
+    return party.invite_code
+
+
 def _clean_player_name(player_name: str) -> str:
     display_name = " ".join(player_name.strip().split())
     if not display_name:
@@ -101,9 +106,11 @@ def _unique_party_id(db: Session) -> str:
     raise RuntimeError("Could not generate a unique party id.")
 
 
-def _unique_invite_code(db: Session) -> str:
+def _unique_invite_code(db: Session, current_invite_code: str | None = None) -> str:
     for _ in range(20):
         invite_code = generate_invite_code()
+        if invite_code == current_invite_code:
+            continue
         exists = db.scalar(select(Party.id).where(Party.invite_code == invite_code))
         if exists is None:
             return invite_code

@@ -10,7 +10,7 @@ Warparty is not affiliated with Blizzard Entertainment.
 - Join up to four players by default.
 - Keep each browser tied to one player identity with a private session cookie.
 - Remember the last player name locally to pre-fill future create and join forms.
-- Let the party leader remove stale members so open slots can be reused.
+- Let the party leader remove stale members so open slots can be reused. Removing a player rotates the invite code.
 - Let non-leaders leave a party and let leaders transfer leadership before leaving.
 - Copy one invite message that includes both the invite URL and short code.
 - Manually enter War Plans from the supported activity set.
