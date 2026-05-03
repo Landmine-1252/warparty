@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Join Party - Warparty{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1 class="page-title">Join Party</h1>
+    <p class="page-subtitle">Enter your player name to claim an open slot.</p>
+  </div>
+</header>
+
+<form class="panel pure-form pure-form-stacked narrow-panel" method="post" action="/join">
+  <div class="panel-header">
+    <h2 class="panel-title">Invite Code {{ invite_code }}</h2>
+  </div>
+  {% if error %}
+    <p class="empty-state">{{ error }}</p>
+  {% endif %}
+  <input type="hidden" name="invite_code" value="{{ invite_code }}">
+  <label for="player-name">Player name</label>
+  <input id="player-name" name="player_name" maxlength="40" required autocomplete="nickname" {% if not party %}disabled{% endif %}>
+  <div class="action-row">
+    <button class="button-primary" type="submit" {% if not party %}disabled{% endif %}>Join Party</button>
+    <a class="button-secondary" href="/">Back</a>
+  </div>
+</form>
+{% endblock %}
+

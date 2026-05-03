@@ -1,0 +1,106 @@
+{% if slot_player %}
+  {% set activities = get_activities(slot_player.warplan) %}
+  {% set progress_index = slot_player.warplan.progress_index if slot_player.warplan else 0 %}
+  <article class="player-card {% if current_player and current_player.id == slot_player.id %}current-player{% endif %}">
+    <div class="player-header">
+      <div>
+        <span class="slot-label">Slot {{ slot_player.slot_number }}</span>
+        <h3 class="player-name">{{ slot_player.display_name }}</h3>
+      </div>
+      <div class="player-meta">
+        {% if current_player and current_player.id == slot_player.id %}
+          <span class="status-pill warning">You</span>
+        {% endif %}
+        {% if activities %}
+          <span class="status-pill success">Ready</span>
+        {% else %}
+          <span class="status-pill warning">No Plan</span>
+        {% endif %}
+      </div>
+    </div>
+    {% if activities %}
+      <p class="player-summary-line">{{ progress_index }}/{{ activities|length }} complete <span aria-hidden="true">/</span>
+      {% if progress_index < activities|length %}
+        Next: {{ activity_name(activities[progress_index]) }}
+      {% else %}
+        Complete
+      {% endif %}
+      </p>
+      <ol class="level-list">
+        {% for level in range(1, 6) %}
+          {% set activity_key = activities[level - 1] if activities|length >= level else None %}
+          {% if activity_key %}
+            {% set item_class = "is-blocked" %}
+            {% if level <= progress_index %}
+              {% set item_class = "is-complete" %}
+            {% elif level == progress_index + 1 %}
+              {% set item_class = "is-current" %}
+            {% endif %}
+            <li class="level-list-entry">
+              {% if current_player and current_player.id == slot_player.id %}
+                <form method="post" action="/party/{{ party.id }}/progress/set">
+                  {% if level <= progress_index %}
+                    <input type="hidden" name="progress_index" value="{{ level - 1 }}">
+                  {% else %}
+                    <input type="hidden" name="progress_index" value="{{ level }}">
+                  {% endif %}
+                  <button class="activity-node level-progress-toggle {{ item_class }}" type="submit">
+                    {% if level <= progress_index %}
+                      <span class="activity-check" aria-hidden="true"></span>
+                    {% endif %}
+                    <img class="activity-icon" src="{{ activity_icon_path(activity_key) }}" alt="">
+                    <span>
+                      <strong>Level {{ level }}</strong>
+                      <small>{{ activity_name(activity_key) }}</small>
+                    </span>
+                  </button>
+                </form>
+              {% else %}
+                <div class="activity-node {{ item_class }}">
+                  {% if level <= progress_index %}
+                    <span class="activity-check" aria-hidden="true"></span>
+                  {% endif %}
+                  <img class="activity-icon" src="{{ activity_icon_path(activity_key) }}" alt="">
+                  <span>
+                    <strong>Level {{ level }}</strong>
+                    <small>{{ activity_name(activity_key) }}</small>
+                  </span>
+                </div>
+              {% endif %}
+            </li>
+          {% else %}
+            <li class="level-list-entry">
+              <div class="activity-node level-placeholder">
+                <span class="activity-icon-placeholder"></span>
+                <span>
+                  <strong>Level {{ level }}</strong>
+                  <small>Empty</small>
+                </span>
+              </div>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ol>
+    {% else %}
+      <div class="empty-state compact-stack">
+        <span>No War Plan entered.</span>
+      </div>
+    {% endif %}
+    {% if current_player and current_player.id == slot_player.id %}
+      <div class="action-row">
+        <button class="button-secondary" type="button" data-open-warplan-modal>{% if slot_player.warplan %}Edit Plan{% else %}Create Plan{% endif %}</button>
+        {% if slot_player.warplan %}
+          <form method="post" action="/party/{{ party.id }}/my-warplan/delete" data-confirm-clear>
+            <button class="button-danger" type="submit">Clear Plan</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
+  </article>
+{% else %}
+  <article class="player-card player-card-empty">
+    <span class="slot-label">Slot {{ slot_number }}</span>
+    <h3 class="player-name">Open</h3>
+    <p class="open-slot-copy">Share the invite link or code.</p>
+  </article>
+{% endif %}

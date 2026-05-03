@@ -1,0 +1,13 @@
+.venv/
+.venv-win/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.pyc
+*.pyo
+*.sqlite
+*.sqlite3
+*.db
+App_Data/
+.env

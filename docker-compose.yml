@@ -1,0 +1,16 @@
+services:
+  warparty:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      WARPARTY_PUBLIC_BASE_URL: http://localhost:8080
+      WARPARTY_DATA_DIR: /app/App_Data
+      WARPARTY_DATABASE_PATH: /app/App_Data/warparty.db
+      WARPARTY_SECRET_KEY: local-compose-change-me
+    volumes:
+      - warparty-data:/app/App_Data
+
+volumes:
+  warparty-data:
+

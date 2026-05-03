@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Warparty{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1 class="page-title">Coordinate Diablo War Plans</h1>
+    <p class="page-subtitle">Create a private party, enter each player path, and follow one recommended route.</p>
+  </div>
+</header>
+
+<section class="home-grid">
+  <form class="panel pure-form pure-form-stacked" method="post" action="/parties">
+    <div class="panel-header">
+      <h2 class="panel-title">Create Warparty</h2>
+    </div>
+    <label for="create-player-name">Player name</label>
+    <input id="create-player-name" name="player_name" maxlength="40" required autocomplete="nickname">
+    <div class="action-row">
+      <button class="button-primary" type="submit">Create Party</button>
+    </div>
+  </form>
+
+  <form class="panel pure-form pure-form-stacked" method="post" action="/join">
+    <div class="panel-header">
+      <h2 class="panel-title">Join Warparty</h2>
+    </div>
+    <label for="invite-code">Invite code</label>
+    <input id="invite-code" name="invite_code" maxlength="12" required autocomplete="off">
+    <label for="join-player-name">Player name</label>
+    <input id="join-player-name" name="player_name" maxlength="40" required autocomplete="nickname">
+    <div class="action-row">
+      <button class="button-secondary" type="submit">Join Party</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="panel-title">How It Works</h2>
+  </div>
+  <ol class="steps-list">
+    <li>Create or join a party.</li>
+    <li>Enter each player's War Plan.</li>
+    <li>Follow the shared route.</li>
+  </ol>
+</section>
+{% endblock %}
+

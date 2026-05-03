@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}My War Plan - Warparty{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1 class="page-title">My War Plan</h1>
+    <p class="page-subtitle">Choose your ordered path and current progress.</p>
+  </div>
+  <div class="page-actions">
+    <a class="button-secondary" href="/party/{{ party.id }}">Party Room</a>
+  </div>
+</header>
+
+<form class="panel pure-form pure-form-stacked narrow-panel" method="post" action="/party/{{ party.id }}/my-warplan">
+  <div class="panel-header">
+    <h2 class="panel-title">{{ current_player.display_name }}</h2>
+  </div>
+  {% if error %}
+    <p class="empty-state">{{ error }}</p>
+  {% endif %}
+
+  <label for="plan-length">Path length</label>
+  <select id="plan-length" name="plan_length">
+    {% for length in range(1, max_plan_length + 1) %}
+      <option value="{{ length }}" {% if length == activities|length or (activities|length == 0 and length == 3) %}selected{% endif %}>{{ length }}</option>
+    {% endfor %}
+  </select>
+
+  <div class="warplan-editor">
+    {% for index in range(1, max_plan_length + 1) %}
+      <label for="activity-{{ index }}">Level {{ index }}</label>
+      <select id="activity-{{ index }}" name="activity_{{ index }}">
+        {% set selected_activity = activities[index - 1] if activities|length >= index else "helltide" %}
+        {% for activity in activity_options %}
+          <option value="{{ activity.key }}" {% if activity.key == selected_activity %}selected{% endif %}>{{ activity.name }}</option>
+        {% endfor %}
+      </select>
+    {% endfor %}
+  </div>
+
+  <label for="progress-index">Current progress</label>
+  <select id="progress-index" name="progress_index">
+    {% for index in range(0, max_plan_length + 1) %}
+      <option value="{{ index }}" {% if index == progress_index %}selected{% endif %}>{{ index }} complete</option>
+    {% endfor %}
+  </select>
+
+  <div class="action-row">
+    <button class="button-primary" type="submit">Save Plan</button>
+    <a class="button-secondary" href="/party/{{ party.id }}">Cancel</a>
+  </div>
+</form>
+
+{% if current_player.warplan %}
+  <form class="narrow-panel delete-form" method="post" action="/party/{{ party.id }}/my-warplan/delete">
+    <button class="button-danger" type="submit">Delete Plan</button>
+  </form>
+{% endif %}
+{% endblock %}

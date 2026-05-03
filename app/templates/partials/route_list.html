@@ -1,0 +1,15 @@
+{% if route %}
+  <div class="route-list">
+    {% for step in route %}
+      <div class="route-row route-card route-card-{{ step.step_type }} {% if step.is_current %}route-card-next{% endif %}">
+        <span class="route-step-number">{{ step.step_number }}</span>
+        <img class="activity-icon" src="{{ activity_icon_path(step.activity_key) }}" alt="">
+        <span class="route-activity">{{ step.activity_name }}</span>
+        <span class="status-pill route-step-type route-step-{{ step.step_type }}">{{ step.step_type|capitalize }}</span>
+        <span class="route-instruction">{{ step.instruction_text }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty-state">No remaining route steps.</p>
+{% endif %}

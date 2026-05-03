@@ -1,0 +1,1 @@
+"""Warparty Python application package."""

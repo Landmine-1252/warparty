@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Warparty{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/pure-min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/warparty.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="app-nav">
+      <a class="brand" href="/">Warparty</a>
+      <div class="nav-actions">
+        <a href="/">Create</a>
+        <a href="/">Join</a>
+      </div>
+    </nav>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+

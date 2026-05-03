@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Error - Warparty{% endblock %}
+{% block content %}
+<section class="panel narrow-panel">
+  <div class="panel-header">
+    <h1 class="panel-title">Something Went Wrong</h1>
+  </div>
+  <p class="empty-state">{{ message }}</p>
+  <div class="action-row">
+    <a class="button-secondary" href="/">Return Home</a>
+  </div>
+</section>
+{% endblock %}
+

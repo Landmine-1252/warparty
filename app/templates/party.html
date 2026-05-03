@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Warparty{% endblock %}
+{% block content %}
+<header class="page-header compact-page-header">
+  <div class="page-actions">
+    <button class="button-secondary" type="button" data-copy="{{ invite_url }}">Copy Link</button>
+    <button class="button-secondary" type="button" data-copy="{{ party.invite_code }}">Copy Code</button>
+    <a class="button-secondary" href="/join/{{ party.invite_code }}">Open Invite</a>
+  </div>
+</header>
+
+{% include "partials/next_action.html" %}
+
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="panel-title">Player War Plans</h2>
+  </div>
+  <div class="player-grid">
+    {% for slot_player in slots %}
+      {% set slot_number = loop.index %}
+      {% include "partials/player_card.html" %}
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="panel-title">Recommended Party Route</h2>
+  </div>
+  {% include "partials/route_list.html" %}
+</section>
+
+{% if current_player %}
+  {% include "partials/warplan_modal.html" %}
+  {% include "partials/clear_plan_modal.html" %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const copyButtons = document.querySelectorAll("[data-copy]");
+  copyButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(button.dataset.copy);
+      button.textContent = "Copied";
+      window.setTimeout(() => window.location.reload(), 900);
+    });
+  });
+
+  const clearModal = document.querySelector("#clear-plan-modal");
+  let pendingClearForm = null;
+  document.querySelectorAll("[data-confirm-clear]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      if (clearModal) {
+        event.preventDefault();
+        pendingClearForm = form;
+        clearModal.showModal();
+      }
+    });
+  });
+  if (clearModal) {
+    clearModal.querySelector("[data-cancel-clear]").addEventListener("click", () => {
+      pendingClearForm = null;
+      clearModal.close();
+    });
+    clearModal.querySelector("[data-confirm-clear-submit]").addEventListener("click", () => {
+      if (pendingClearForm) {
+        pendingClearForm.submit();
+      }
+    });
+    clearModal.addEventListener("click", (event) => {
+      if (event.target === clearModal) {
+        pendingClearForm = null;
+        clearModal.close();
+      }
+    });
+  }
+
+  const modal = document.querySelector("#warplan-modal");
+  if (modal) {
+    const openButtons = document.querySelectorAll("[data-open-warplan-modal]");
+    const closeButtons = modal.querySelectorAll("[data-close-warplan-modal]");
+    const choices = Array.from(modal.querySelectorAll("[data-activity-choice]"));
+    const selectedList = modal.querySelector("[data-selected-path]");
+    const emptyState = modal.querySelector("[data-selected-empty]");
+    const saveButton = modal.querySelector("[data-save-warplan]");
+    const lengthInput = modal.querySelector("[name='plan_length']");
+    const progressInput = modal.querySelector("[name='progress_index']");
+    const hiddenInputs = Array.from(modal.querySelectorAll("[data-activity-input]"));
+    const maxLength = Number(modal.dataset.maxLength);
+    const existingProgress = Number(modal.dataset.progressIndex);
+    let selected = JSON.parse(modal.dataset.activities || "[]");
+
+    function activityMeta(key) {
+      const button = choices.find((choice) => choice.dataset.activityKey === key);
+      return {
+        key,
+        name: button ? button.dataset.activityName : key,
+        icon: button ? button.dataset.activityIcon : ""
+      };
+    }
+
+    function renderSelected() {
+      selectedList.innerHTML = "";
+      selected.forEach((key, index) => {
+        const meta = activityMeta(key);
+        const item = document.createElement("li");
+        item.className = "selected-path-item";
+        item.innerHTML = `
+          <span class="selected-path-level">${index + 1}</span>
+          <img src="${meta.icon}" alt="">
+          <span>${meta.name}</span>
+          <button type="button" aria-label="Remove ${meta.name}" data-remove-index="${index}">Remove</button>
+        `;
+        selectedList.appendChild(item);
+      });
+      selectedList.querySelectorAll("[data-remove-index]").forEach((button) => {
+        button.addEventListener("click", () => {
+          selected.splice(Number(button.dataset.removeIndex), 1);
+          renderSelected();
+        });
+      });
+      emptyState.hidden = selected.length !== 0;
+      lengthInput.value = String(selected.length);
+      progressInput.value = String(Math.min(existingProgress, selected.length));
+      hiddenInputs.forEach((input, index) => {
+        input.value = selected[index] || "";
+      });
+      saveButton.disabled = selected.length === 0;
+      choices.forEach((choice) => {
+        choice.disabled = selected.length >= maxLength;
+      });
+    }
+
+    choices.forEach((choice) => {
+      choice.addEventListener("click", () => {
+        if (selected.length < maxLength) {
+          selected.push(choice.dataset.activityKey);
+          renderSelected();
+        }
+      });
+    });
+    openButtons.forEach((button) => button.addEventListener("click", () => modal.showModal()));
+    closeButtons.forEach((button) => button.addEventListener("click", () => modal.close()));
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        modal.close();
+      }
+    });
+    renderSelected();
+  }
+
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${scheme}://${window.location.host}/ws/party/{{ party.id }}`);
+  let reloadTimer = null;
+  ws.addEventListener("message", (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.type === "party_updated" && payload.party_id === "{{ party.id }}") {
+        window.clearTimeout(reloadTimer);
+        reloadTimer = window.setTimeout(() => window.location.reload(), 350);
+      }
+    } catch {
+      window.clearTimeout(reloadTimer);
+      reloadTimer = window.setTimeout(() => window.location.reload(), 350);
+    }
+  });
+})();
+</script>
+{% endblock %}

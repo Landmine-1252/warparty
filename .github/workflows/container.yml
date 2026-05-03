@@ -1,0 +1,97 @@
+name: Publish Container
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "*.*.*"
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Derive image tags and labels
+        id: prep
+        shell: bash
+        run: |
+          image="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          ref_tag="${GITHUB_REF_NAME}"
+          version="${ref_tag#v}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "Unsupported tag '$ref_tag'. Use 1.2.3, 1.2.3-rc.1, v1.2.3, or v1.2.3-rc.1." >&2
+            exit 1
+          fi
+
+          tags=("${image}:${version}")
+          if [[ "$ref_tag" != "$version" ]]; then
+            tags+=("${image}:${ref_tag}")
+          fi
+
+          if [[ "$version" != *-* ]]; then
+            IFS='.' read -r major minor patch <<< "$version"
+            tags+=(
+              "${image}:${major}.${minor}"
+              "${image}:${major}"
+              "${image}:latest"
+            )
+          fi
+
+          {
+            echo "image=${image}"
+            echo "version=${version}"
+            echo 'tags<<EOF_TAGS'
+            printf '%s\n' "${tags[@]}"
+            echo 'EOF_TAGS'
+            echo 'labels<<EOF_LABELS'
+            echo "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
+            echo "org.opencontainers.image.description=Private War Plan Assistant for small party route planning"
+            echo "org.opencontainers.image.version=${version}"
+            echo "org.opencontainers.image.revision=${GITHUB_SHA}"
+            echo 'EOF_LABELS'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push container image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.prep.outputs.tags }}
+          labels: ${{ steps.prep.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ steps.prep.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
