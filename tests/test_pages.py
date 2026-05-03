@@ -27,6 +27,8 @@ def test_home_page_renders() -> None:
 
     assert response.status_code == 200
     assert b"Coordinate Diablo War Plans" in response.body
+    assert b"icons/favicon/favicon.ico" in response.body
+    assert b"icons/favicon/site.webmanifest" in response.body
 
 
 def test_home_page_prefills_remembered_player_name() -> None:

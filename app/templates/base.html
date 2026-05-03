@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Warparty{% endblock %}</title>
+  <link rel="icon" type="image/png" sizes="96x96" href="{{ url_for('static', path='icons/favicon/favicon-96x96.png') }}">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="{{ url_for('static', path='icons/favicon/favicon.svg') }}">
+  <link rel="shortcut icon" href="{{ url_for('static', path='icons/favicon/favicon.ico') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', path='icons/favicon/apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ url_for('static', path='icons/favicon/site.webmanifest') }}">
+  <meta name="theme-color" content="#f0b72f" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f0d0b" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="{{ url_for('static', path='css/pure-min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='css/warparty.css') }}">
 </head>
