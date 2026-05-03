@@ -169,6 +169,8 @@ If you use `--user 99:100`, make sure `/mnt/user/appdata/warparty` is writable b
 | `WARPARTY_SQLITE_BUSY_TIMEOUT_MS` | `5000` | SQLite lock wait timeout. |
 | `WARPARTY_SQLITE_WAL` | `true` | Enables SQLite WAL mode. |
 | `WARPARTY_STALE_PLAYER_MINUTES` | `60` | Age after which leader controls treat a player as stale. |
+| `WARPARTY_AUTO_MIGRATE_LEGACY_DATA` | `true` | Copies old `/app/App_Data` database and secret files into the configured data path if the new files are missing. |
+| `WARPARTY_LEGACY_DATA_DIR` | `/app/App_Data` | Legacy data path checked during one-time upgrade adoption. |
 | `WARPARTY_ENV` | `development` | Set to `production` for container deployments. |
 
 ## Healthcheck
@@ -205,7 +207,24 @@ Stop the container, replace `warparty.db` and `secret_key` in the mounted data d
 
 Pull the new image, stop the old container, back up `/data`, then start the new container with the same volume. This first version uses SQLAlchemy `create_all`; future schema migrations should be handled before more complex releases.
 
-Older Warparty images used `/app/App_Data`. When upgrading, either move that volume mount to `/data` or keep the old mount and set `WARPARTY_DATA_DIR=/app/App_Data` plus `WARPARTY_DATABASE_PATH=/app/App_Data/warparty.db`.
+Older Warparty images used `/app/App_Data`. Current images use `/data`. On startup, Warparty checks `/app/App_Data` and copies `warparty.db`, `warparty.db-wal`, `warparty.db-shm`, and `secret_key` into the configured data path only when the target files do not already exist. This is enabled by `WARPARTY_AUTO_MIGRATE_LEGACY_DATA=true` and never overwrites an existing database.
+
+That compatibility copy only works if the old data is still visible inside the container. The safest upgrade path is still:
+
+```bash
+docker stop warparty
+cp -a /path/to/current/data ./warparty-data-backup
+docker pull ghcr.io/landmine-1252/warparty:latest
+docker run ... -v /path/to/current/data:/data ...
+```
+
+If your existing host mount points at old data, either move/copy the host directory contents to the new `/data` mount location, or keep using the old path explicitly:
+
+```bash
+-v /path/to/old-data:/app/App_Data \
+-e WARPARTY_DATA_DIR=/app/App_Data \
+-e WARPARTY_DATABASE_PATH=/app/App_Data/warparty.db
+```
 
 ## Troubleshooting
 

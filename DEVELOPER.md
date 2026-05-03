@@ -91,6 +91,8 @@ The app also stores a non-authoritative `warparty_player_name` cookie to pre-fil
 
 SQLite is configured in `app.database` through SQLAlchemy. Startup creates the data directory and database parent directory, verifies that the database file is writable, imports models, then runs `Base.metadata.create_all`.
 
+Startup also has a narrow legacy adoption step for older containers that wrote to `/app/App_Data`. If the configured database path does not exist and `WARPARTY_AUTO_MIGRATE_LEGACY_DATA=true`, Warparty copies `warparty.db` and any SQLite WAL sidecars from `WARPARTY_LEGACY_DATA_DIR` into the configured data path. The generated secret key follows the same target-missing-only rule in `app.config`. These copies are intentionally non-destructive and never replace an existing target file.
+
 Connection pragmas:
 
 - `foreign_keys=ON`
@@ -138,6 +140,8 @@ docker compose up --build
 ```
 
 The app listens on port `8080` and persists SQLite data in `/data`. The image runs as non-root UID/GID `10001`. Docker/Podman named volumes work without extra setup; host bind mounts must be writable by UID/GID `10001` or by whichever user is supplied through `docker run --user` / `podman run --user`.
+
+Older images used `/app/App_Data`. Keep `WARPARTY_AUTO_MIGRATE_LEGACY_DATA=true` for upgrades so startup can adopt old database and secret files if the new `/data` target is empty and the old path is still mounted. After the upgrade is confirmed, deployments can leave it enabled or disable it; it does not overwrite existing data.
 
 The Dockerfile uses `uv.lock` through a builder stage and copies only the virtual environment and application source into the runtime stage. Runtime logs go to stdout/stderr through uvicorn.
 
