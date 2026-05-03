@@ -11,6 +11,8 @@ from app.config import get_settings
 
 COOKIE_NAME = "warparty_session"
 COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90
+REMEMBERED_PLAYER_NAME_COOKIE = "warparty_player_name"
+REMEMBERED_PLAYER_NAME_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 _PUBLIC_ALPHABET = string.ascii_lowercase + string.digits
 _INVITE_ALPHABET = string.ascii_uppercase + string.digits
 
@@ -79,6 +81,18 @@ def set_session_cookie(response: Response, player_id: int, token: str) -> None:
         COOKIE_NAME,
         encode_session_cookie(player_id, token),
         max_age=COOKIE_MAX_AGE_SECONDS,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
+
+
+def set_remembered_player_name_cookie(response: Response, display_name: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        REMEMBERED_PLAYER_NAME_COOKIE,
+        display_name,
+        max_age=REMEMBERED_PLAYER_NAME_MAX_AGE_SECONDS,
         httponly=True,
         secure=settings.cookie_secure,
         samesite="lax",

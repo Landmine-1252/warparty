@@ -3,8 +3,9 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Player, utcnow
+from app.models import Party, Player, utcnow
 from app.security import decode_session_cookie, verify_session_token
+from app.services.errors import ServiceError
 
 
 def get_player(db: Session, player_id: int) -> Player | None:
@@ -29,3 +30,25 @@ def get_current_player(
     db.commit()
     db.refresh(player)
     return player
+
+
+def remove_player_from_party(
+    db: Session,
+    party: Party,
+    acting_player: Player,
+    target_player_id: int,
+) -> None:
+    if party.leader_player_id != acting_player.id:
+        raise ServiceError("Only the party leader can remove players.")
+    if target_player_id == acting_player.id:
+        raise ServiceError("The party leader cannot remove themselves.")
+
+    target_player = db.scalar(
+        select(Player).where(Player.id == target_player_id, Player.party_id == party.id)
+    )
+    if target_player is None:
+        raise ServiceError("Player was not found in this Warparty.")
+
+    db.delete(target_player)
+    db.commit()
+    db.expire(party, ["players"])

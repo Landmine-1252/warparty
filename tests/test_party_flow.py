@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from app.security import csrf_token_from_cookie, encode_session_cookie, verify_csrf_token
 from app.services.parties import create_party, join_party
-from app.services.players import get_current_player
+from app.services.players import get_current_player, get_player, remove_player_from_party
 from app.services.warplans import get_activities, save_warplan
 
 
@@ -26,8 +28,6 @@ def test_join_fills_next_open_slot(db_session) -> None:
 
 
 def test_full_party_rejects_new_player(db_session) -> None:
-    import pytest
-
     from app.services.errors import ServiceError
 
     party, _, _ = create_party(db_session, "One")
@@ -87,3 +87,34 @@ def test_csrf_token_is_bound_to_session_and_party(db_session) -> None:
     assert verify_csrf_token(cookie, party.id, csrf_token)
     assert not verify_csrf_token(cookie, "other-party", csrf_token)
     assert not verify_csrf_token(cookie, party.id, "bad-token")
+
+
+def test_party_leader_can_remove_member_and_free_slot(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, removed_player, _ = join_party(db_session, party.invite_code, "Landmine")
+    save_warplan(db_session, removed_player, ["pit"])
+
+    remove_player_from_party(db_session, party, leader, removed_player.id)
+
+    assert get_player(db_session, removed_player.id) is None
+    _, new_player, _ = join_party(db_session, party.invite_code, "Kaos")
+    assert new_player.slot_number == 2
+
+
+def test_non_leader_cannot_remove_member(db_session) -> None:
+    from app.services.errors import ServiceError
+
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, member, _ = join_party(db_session, party.invite_code, "Landmine")
+
+    with pytest.raises(ServiceError):
+        remove_player_from_party(db_session, party, member, leader.id)
+
+
+def test_leader_cannot_remove_self(db_session) -> None:
+    from app.services.errors import ServiceError
+
+    party, leader, _ = create_party(db_session, "Cipher")
+
+    with pytest.raises(ServiceError):
+        remove_player_from_party(db_session, party, leader, leader.id)

@@ -87,13 +87,20 @@
         <span>No War Plan entered.</span>
       </div>
     {% endif %}
-    {% if current_player and current_player.id == slot_player.id %}
+    {% if current_player and (current_player.id == slot_player.id or (is_party_leader and current_player.id != slot_player.id)) %}
       <div class="action-row">
-        <button class="button-secondary" type="button" data-open-warplan-modal>{% if slot_player.warplan %}Edit Plan{% else %}Create Plan{% endif %}</button>
-        {% if slot_player.warplan %}
-          <form method="post" action="/party/{{ party.id }}/my-warplan/delete" data-confirm-clear>
+        {% if current_player.id == slot_player.id %}
+          <button class="button-secondary" type="button" data-open-warplan-modal>{% if slot_player.warplan %}Edit Plan{% else %}Create Plan{% endif %}</button>
+          {% if slot_player.warplan %}
+            <form method="post" action="/party/{{ party.id }}/my-warplan/delete" data-confirm-clear>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="button-danger" type="submit">Clear Plan</button>
+            </form>
+          {% endif %}
+        {% elif is_party_leader %}
+          <form method="post" action="/party/{{ party.id }}/players/{{ slot_player.id }}/remove" data-confirm-remove-player data-player-name="{{ slot_player.display_name }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button class="button-danger" type="submit">Clear Plan</button>
+            <button class="button-danger" type="submit">Remove</button>
           </form>
         {% endif %}
       </div>

@@ -79,6 +79,12 @@ The service layer only exposes one-step progress operations:
 
 All progress changes are scoped to the current authenticated player. A target progress index must be between `0` and the player's plan length.
 
+## Party Ownership
+
+The player who creates a Warparty is stored as `leader_player_id`. The leader can remove other players from the party, which deletes that player's War Plan and frees the slot for a future join. The leader cannot remove themselves through this first-version flow.
+
+The app also stores a non-authoritative `warparty_player_name` cookie to pre-fill future create/join forms. Authorization still uses the signed session identity and database token hash, not the remembered name.
+
 ## SQLite Notes
 
 SQLite is configured in `app.database` through SQLAlchemy. Startup creates the data directory and database parent directory, verifies that the database file is writable, imports models, then runs `Base.metadata.create_all`.

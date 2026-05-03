@@ -33,6 +33,9 @@
 {% if current_player %}
   {% include "partials/warplan_modal.html" %}
   {% include "partials/clear_plan_modal.html" %}
+  {% if is_party_leader %}
+    {% include "partials/remove_player_modal.html" %}
+  {% endif %}
 {% endif %}
 {% endblock %}
 
@@ -73,6 +76,41 @@
       if (event.target === clearModal) {
         pendingClearForm = null;
         clearModal.close();
+      }
+    });
+  }
+
+  const removePlayerModal = document.querySelector("#remove-player-modal");
+  let pendingRemovePlayerForm = null;
+  document.querySelectorAll("[data-confirm-remove-player]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      if (removePlayerModal) {
+        event.preventDefault();
+        pendingRemovePlayerForm = form;
+        const nameTarget = removePlayerModal.querySelector("[data-remove-player-name]");
+        if (nameTarget) {
+          nameTarget.textContent = form.dataset.playerName || "This player";
+        }
+        removePlayerModal.showModal();
+      }
+    });
+  });
+  if (removePlayerModal) {
+    removePlayerModal.querySelectorAll("[data-cancel-remove-player]").forEach((button) => {
+      button.addEventListener("click", () => {
+        pendingRemovePlayerForm = null;
+        removePlayerModal.close();
+      });
+    });
+    removePlayerModal.querySelector("[data-confirm-remove-player-submit]").addEventListener("click", () => {
+      if (pendingRemovePlayerForm) {
+        pendingRemovePlayerForm.submit();
+      }
+    });
+    removePlayerModal.addEventListener("click", (event) => {
+      if (event.target === removePlayerModal) {
+        pendingRemovePlayerForm = null;
+        removePlayerModal.close();
       }
     });
   }

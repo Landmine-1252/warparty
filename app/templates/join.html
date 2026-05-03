@@ -17,11 +17,14 @@
   {% endif %}
   <input type="hidden" name="invite_code" value="{{ invite_code }}">
   <label for="player-name">Player name</label>
-  <input id="player-name" name="player_name" maxlength="40" required autocomplete="nickname" {% if not party %}disabled{% endif %}>
+  <input id="player-name" name="player_name" maxlength="40" required autocomplete="nickname" value="{{ remembered_player_name }}" {% if not party or party_full %}disabled{% endif %}>
   <div class="action-row">
-    <button class="button-primary" type="submit" {% if not party %}disabled{% endif %}>Join Party</button>
+    {% if party_full %}
+      <a class="button-primary" href="/join/{{ invite_code }}">Retry Join</a>
+    {% else %}
+      <button class="button-primary" type="submit" {% if not party %}disabled{% endif %}>Join Party</button>
+    {% endif %}
     <a class="button-secondary" href="/">Back</a>
   </div>
 </form>
 {% endblock %}
-

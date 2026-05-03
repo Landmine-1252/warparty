@@ -13,11 +13,24 @@ from app.config import get_settings
 from app.constants import ACTIVITIES, MAX_PLAN_LENGTH, activity_icon_path, activity_name
 from app.database import get_db
 from app.realtime import manager
-from app.security import COOKIE_NAME, csrf_token_from_cookie, set_session_cookie, verify_csrf_token
+from app.security import (
+    COOKIE_NAME,
+    REMEMBERED_PLAYER_NAME_COOKIE,
+    csrf_token_from_cookie,
+    set_remembered_player_name_cookie,
+    set_session_cookie,
+    verify_csrf_token,
+)
 from app.services.errors import ServiceError
 from app.services.invites import invite_url
-from app.services.parties import create_party, get_party, get_party_by_invite_code, join_party
-from app.services.players import get_current_player
+from app.services.parties import (
+    create_party,
+    get_party,
+    get_party_by_invite_code,
+    join_party,
+    party_is_full,
+)
+from app.services.players import get_current_player, remove_player_from_party
 from app.services.routes import recommended_route_for_party
 from app.services.warplans import (
     delete_warplan,
@@ -34,7 +47,11 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "index.html", {})
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"remembered_player_name": _remembered_player_name(request)},
+    )
 
 
 @router.post("/parties")
@@ -48,6 +65,7 @@ def create_party_page(
         return _error_redirect(str(exc))
     response = RedirectResponse(f"/party/{party.id}", status_code=status.HTTP_303_SEE_OTHER)
     set_session_cookie(response, player.id, token)
+    set_remembered_player_name_cookie(response, player.display_name)
     return response
 
 
@@ -58,29 +76,58 @@ def join_by_code(
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     party = get_party_by_invite_code(db, invite_code)
+    party_full = party_is_full(party) if party else False
     return templates.TemplateResponse(
         request,
         "join.html",
         {
             "invite_code": invite_code.upper(),
             "party": party,
-            "error": None if party else "Invite code was not found.",
+            "party_full": party_full,
+            "error": _join_page_error(party, party_full),
+            "remembered_player_name": _remembered_player_name(request),
         },
     )
 
 
-@router.post("/join")
+@router.post("/join", response_model=None)
 async def join_party_page(
+    request: Request,
     invite_code: str = Form(...),
     player_name: str = Form(...),
     db: Session = Depends(get_db),
-) -> RedirectResponse:
+) -> HTMLResponse | RedirectResponse:
+    party = get_party_by_invite_code(db, invite_code)
+    if party is None:
+        return _join_page_response(
+            request,
+            invite_code,
+            None,
+            "Invite code was not found.",
+            status.HTTP_404_NOT_FOUND,
+        )
+    if party_is_full(party):
+        return _join_page_response(
+            request,
+            invite_code,
+            party,
+            "This Warparty is full. Ask the party leader to remove someone, then try again.",
+            status.HTTP_409_CONFLICT,
+            party_full=True,
+        )
     try:
         party, player, token = join_party(db, invite_code, player_name)
     except ServiceError as exc:
-        return _error_redirect(str(exc))
+        return _join_page_response(
+            request,
+            invite_code,
+            party,
+            str(exc),
+            status.HTTP_400_BAD_REQUEST,
+        )
     response = RedirectResponse(f"/party/{party.id}", status_code=status.HTTP_303_SEE_OTHER)
     set_session_cookie(response, player.id, token)
+    set_remembered_player_name_cookie(response, player.display_name)
     await manager.broadcast(party.id, "player_joined")
     return response
 
@@ -175,7 +222,9 @@ def my_warplan(
             {
                 "invite_code": party.invite_code,
                 "party": party,
+                "party_full": party_is_full(party),
                 "error": "Join this Warparty before editing a War Plan.",
+                "remembered_player_name": _remembered_player_name(request),
             },
         )
     activities = get_activities(current_player.warplan)
@@ -262,6 +311,30 @@ async def delete_my_warplan(
     return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/party/{party_id}/players/{player_id}/remove")
+async def remove_player_page(
+    party_id: str,
+    player_id: int,
+    csrf_token: str = Form(""),
+    session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    party = get_party(db, party_id)
+    current_player = get_current_player(db, party_id, session_cookie)
+    if (
+        party is not None
+        and current_player is not None
+        and verify_csrf_token(session_cookie, party_id, csrf_token)
+    ):
+        try:
+            remove_player_from_party(db, party, current_player, player_id)
+        except ServiceError:
+            pass
+        else:
+            await manager.broadcast(party_id, "player_removed")
+    return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
@@ -288,6 +361,7 @@ def _party_context(
         for slot in range(1, max_players + 1)
     ]
     ready_players = [player for player in party.players if player.warplan is not None]
+    is_party_leader = current_player is not None and party.leader_player_id == current_player.id
     return {
         "request": request,
         "party": party,
@@ -301,6 +375,7 @@ def _party_context(
         "activity_name": activity_name,
         "activity_icon_path": activity_icon_path,
         "get_activities": get_activities,
+        "is_party_leader": is_party_leader,
         "next_action": _next_action(current_player, ready_players, route),
         "csrf_token": csrf_token_from_cookie(session_cookie, party.id) if current_player else None,
     }
@@ -366,5 +441,40 @@ def _error_page(request: Request, message: str, status_code: int) -> HTMLRespons
         request,
         "error.html",
         {"message": message},
+        status_code=status_code,
+    )
+
+
+def _remembered_player_name(request: Request) -> str:
+    return request.cookies.get(REMEMBERED_PLAYER_NAME_COOKIE, "")
+
+
+def _join_page_error(party: Any, party_full: bool) -> str | None:
+    if party is None:
+        return "Invite code was not found."
+    if party_full:
+        return "This Warparty is full. Ask the party leader to remove someone, then try again."
+    return None
+
+
+def _join_page_response(
+    request: Request,
+    invite_code: str,
+    party: Any,
+    error: str,
+    status_code: int,
+    *,
+    party_full: bool = False,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "join.html",
+        {
+            "invite_code": invite_code.strip().upper(),
+            "party": party,
+            "party_full": party_full,
+            "error": error,
+            "remembered_player_name": _remembered_player_name(request),
+        },
         status_code=status_code,
     )
