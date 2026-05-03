@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode
 
@@ -21,7 +22,9 @@ from app.realtime import manager
 from app.security import (
     COOKIE_NAME,
     REMEMBERED_PLAYER_NAME_COOKIE,
+    clear_session_cookie,
     csrf_token_from_cookie,
+    decode_session_cookie,
     set_remembered_player_name_cookie,
     set_session_cookie,
     verify_csrf_token,
@@ -35,7 +38,13 @@ from app.services.parties import (
     join_party,
     party_is_full,
 )
-from app.services.players import get_current_player, remove_player_from_party
+from app.services.players import (
+    get_current_player,
+    get_player,
+    leave_party,
+    remove_player_from_party,
+    transfer_party_leader,
+)
 from app.services.routes import recommended_route_for_party
 from app.services.warplans import (
     delete_warplan,
@@ -149,10 +158,18 @@ def party_room(
         return _error_page(request, "Warparty not found.", status.HTTP_404_NOT_FOUND)
     current_player = get_current_player(db, party_id, session_cookie)
     route = recommended_route_for_party(party)
+    removed_player_notice = _removed_player_notice(db, party_id, current_player, session_cookie)
     return templates.TemplateResponse(
         request,
         "party.html",
-        _party_context(request, party, current_player, route, session_cookie),
+        _party_context(
+            request,
+            party,
+            current_player,
+            route,
+            session_cookie,
+            removed_player_notice,
+        ),
     )
 
 
@@ -340,6 +357,54 @@ async def remove_player_page(
     return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/party/{party_id}/leave")
+async def leave_party_page(
+    party_id: str,
+    csrf_token: str = Form(""),
+    session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    party = get_party(db, party_id)
+    current_player = get_current_player(db, party_id, session_cookie)
+    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    if (
+        party is not None
+        and current_player is not None
+        and verify_csrf_token(session_cookie, party_id, csrf_token)
+    ):
+        try:
+            leave_party(db, party, current_player)
+        except ServiceError:
+            return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+        clear_session_cookie(response)
+        await manager.broadcast(party_id, "player_left")
+    return response
+
+
+@router.post("/party/{party_id}/players/{player_id}/transfer-leader")
+async def transfer_leader_page(
+    party_id: str,
+    player_id: int,
+    csrf_token: str = Form(""),
+    session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    party = get_party(db, party_id)
+    current_player = get_current_player(db, party_id, session_cookie)
+    if (
+        party is not None
+        and current_player is not None
+        and verify_csrf_token(session_cookie, party_id, csrf_token)
+    ):
+        try:
+            transfer_party_leader(db, party, current_player, player_id)
+        except ServiceError:
+            pass
+        else:
+            await manager.broadcast(party_id, "leader_transferred")
+    return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
@@ -357,30 +422,50 @@ def _party_context(
     current_player: Any,
     route: Any,
     session_cookie: str | None,
+    removed_player_notice: str | None,
 ) -> dict[str, Any]:
     settings = get_settings()
     max_players = settings.max_players_per_party
     occupied_slots = {player.slot_number for player in party.players}
+    open_slots = max_players - len(occupied_slots)
     slots = [
         next((player for player in party.players if player.slot_number == slot), None)
         for slot in range(1, max_players + 1)
     ]
     ready_players = [player for player in party.players if player.warplan is not None]
     is_party_leader = current_player is not None and party.leader_player_id == current_player.id
+    stale_player_ids = {
+        player.id
+        for player in party.players
+        if _player_is_stale(player, settings.stale_player_minutes)
+    }
+    removable_player_ids = {
+        player.id
+        for player in party.players
+        if is_party_leader
+        and current_player is not None
+        and player.id != current_player.id
+        and (open_slots == 0 or player.id in stale_player_ids)
+    }
+    invite_text = f"Join my Warparty: {invite_url(party)}\nInvite code: {party.invite_code}"
     return {
         "request": request,
         "party": party,
         "current_player": current_player,
         "route": route,
         "slots": slots,
-        "open_slots": max_players - len(occupied_slots),
+        "open_slots": open_slots,
         "ready_players_count": len(ready_players),
         "invite_url": invite_url(party),
+        "invite_text": invite_text,
         "activity_options": ACTIVITY_PICKER_ACTIVITIES,
         "activity_name": activity_name,
         "activity_icon_path": activity_icon_path,
         "get_activities": get_activities,
         "is_party_leader": is_party_leader,
+        "stale_player_ids": stale_player_ids,
+        "removable_player_ids": removable_player_ids,
+        "removed_player_notice": removed_player_notice,
         "next_action": _next_action(current_player, ready_players, route),
         "csrf_token": csrf_token_from_cookie(session_cookie, party.id) if current_player else None,
     }
@@ -483,3 +568,32 @@ def _join_page_response(
         },
         status_code=status_code,
     )
+
+
+def _player_is_stale(player: Any, stale_minutes: int) -> bool:
+    last_seen_at = player.last_seen_at
+    if last_seen_at is None:
+        return True
+    if last_seen_at.tzinfo is None:
+        last_seen_at = last_seen_at.replace(tzinfo=UTC)
+    return datetime.now(UTC) - last_seen_at > timedelta(minutes=stale_minutes)
+
+
+def _removed_player_notice(
+    db: Session,
+    party_id: str,
+    current_player: Any,
+    session_cookie: str | None,
+) -> str | None:
+    if current_player is not None:
+        return None
+    decoded = decode_session_cookie(session_cookie)
+    if decoded is None:
+        return None
+    player_id, _ = decoded
+    player = get_player(db, player_id)
+    if player is None:
+        return "Your previous slot was removed. Rejoin if a slot is open."
+    if player.party_id == party_id:
+        return "Your previous session is no longer valid. Rejoin if a slot is open."
+    return None

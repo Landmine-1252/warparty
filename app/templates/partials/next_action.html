@@ -7,7 +7,7 @@
   <div class="next-action-meta">
     <span class="status-pill success">{{ ready_players_count }} ready</span>
     <span class="status-pill {% if open_slots == 0 %}status-muted{% else %}warning{% endif %}">{{ open_slots }} open</span>
-    <span class="status-pill">{{ route|length }} steps</span>
+    <span class="status-pill">{{ route|length }} steps left</span>
   </div>
   {% if next_action.state == "readonly" %}
     <div class="action-row">

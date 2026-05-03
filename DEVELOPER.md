@@ -83,6 +83,8 @@ All progress changes are scoped to the current authenticated player. A target pr
 
 The player who creates a Warparty is stored as `leader_player_id`. The leader can remove other players from the party, which deletes that player's War Plan and frees the slot for a future join. The leader cannot remove themselves through this first-version flow.
 
+Leader removal controls are intentionally quiet: the remove button appears when the party is full or when a player is stale according to `WARPARTY_STALE_PLAYER_MINUTES`. A leader can transfer leadership to another current player; non-leaders can leave and free their own slot. Leaders must transfer leadership before leaving.
+
 The app also stores a non-authoritative `warparty_player_name` cookie to pre-fill future create/join forms. Authorization still uses the signed session identity and database token hash, not the remembered name.
 
 ## SQLite Notes

@@ -52,3 +52,35 @@ def remove_player_from_party(
     db.delete(target_player)
     db.commit()
     db.expire(party, ["players"])
+
+
+def leave_party(db: Session, party: Party, player: Player) -> None:
+    if party.leader_player_id == player.id:
+        raise ServiceError("Transfer leadership before leaving this Warparty.")
+
+    db.delete(player)
+    db.commit()
+    db.expire(party, ["players"])
+
+
+def transfer_party_leader(
+    db: Session,
+    party: Party,
+    acting_player: Player,
+    target_player_id: int,
+) -> Player:
+    if party.leader_player_id != acting_player.id:
+        raise ServiceError("Only the party leader can transfer leadership.")
+    if target_player_id == acting_player.id:
+        raise ServiceError("Choose another player to lead this Warparty.")
+
+    target_player = db.scalar(
+        select(Player).where(Player.id == target_player_id, Player.party_id == party.id)
+    )
+    if target_player is None:
+        raise ServiceError("Player was not found in this Warparty.")
+
+    party.leader_player_id = target_player.id
+    db.commit()
+    db.refresh(party)
+    return target_player

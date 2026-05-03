@@ -3,11 +3,21 @@
 {% block content %}
 <header class="page-header compact-page-header">
   <div class="page-actions">
-    <button class="button-secondary" type="button" data-copy="{{ invite_url }}">Copy Link</button>
-    <button class="button-secondary" type="button" data-copy="{{ party.invite_code }}">Copy Code</button>
+    <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
     <a class="button-secondary" href="/join/{{ party.invite_code }}">Open Invite</a>
   </div>
 </header>
+
+{% if removed_player_notice %}
+  <section class="panel notice-panel">
+    <p class="empty-state">{{ removed_player_notice }}</p>
+    {% if open_slots > 0 %}
+      <div class="action-row">
+        <a class="button-primary" href="/join/{{ party.invite_code }}">Rejoin</a>
+      </div>
+    {% endif %}
+  </section>
+{% endif %}
 
 {% include "partials/next_action.html" %}
 
@@ -34,7 +44,13 @@
   {% include "partials/warplan_modal.html" %}
   {% include "partials/clear_plan_modal.html" %}
   {% if is_party_leader %}
-    {% include "partials/remove_player_modal.html" %}
+    {% if removable_player_ids %}
+      {% include "partials/remove_player_modal.html" %}
+    {% endif %}
+    {% include "partials/transfer_leader_modal.html" %}
+  {% endif %}
+  {% if not is_party_leader %}
+    {% include "partials/leave_party_modal.html" %}
   {% endif %}
 {% endif %}
 {% endblock %}
@@ -42,12 +58,37 @@
 {% block scripts %}
 <script>
 (() => {
+  const scrollKey = "warparty-scroll-{{ party.id }}";
+  const savedScroll = sessionStorage.getItem(scrollKey);
+  if (savedScroll !== null) {
+    sessionStorage.removeItem(scrollKey);
+    requestAnimationFrame(() => window.scrollTo(0, Number(savedScroll)));
+  }
+
+  function showToast(message) {
+    let toast = document.querySelector("[data-toast]");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.className = "copy-toast";
+      toast.setAttribute("data-toast", "");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    window.clearTimeout(toast.dataset.timerId);
+    const timerId = window.setTimeout(() => toast.classList.remove("is-visible"), 1600);
+    toast.dataset.timerId = String(timerId);
+  }
+
   const copyButtons = document.querySelectorAll("[data-copy]");
   copyButtons.forEach((button) => {
     button.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(button.dataset.copy);
-      button.textContent = "Copied";
-      window.setTimeout(() => window.location.reload(), 900);
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy);
+        showToast("Invite copied");
+      } catch {
+        showToast("Copy failed");
+      }
     });
   });
 
@@ -115,6 +156,61 @@
     });
   }
 
+  const leavePartyModal = document.querySelector("#leave-party-modal");
+  const leavePartyForm = document.querySelector("[data-confirm-leave-party]");
+  if (leavePartyModal && leavePartyForm) {
+    leavePartyForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      leavePartyModal.showModal();
+    });
+    leavePartyModal.querySelectorAll("[data-cancel-leave-party]").forEach((button) => {
+      button.addEventListener("click", () => leavePartyModal.close());
+    });
+    leavePartyModal.querySelector("[data-confirm-leave-party-submit]").addEventListener("click", () => {
+      leavePartyForm.submit();
+    });
+    leavePartyModal.addEventListener("click", (event) => {
+      if (event.target === leavePartyModal) {
+        leavePartyModal.close();
+      }
+    });
+  }
+
+  const transferLeaderModal = document.querySelector("#transfer-leader-modal");
+  let pendingTransferLeaderForm = null;
+  document.querySelectorAll("[data-confirm-transfer-leader]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      if (transferLeaderModal) {
+        event.preventDefault();
+        pendingTransferLeaderForm = form;
+        const nameTarget = transferLeaderModal.querySelector("[data-transfer-leader-name]");
+        if (nameTarget) {
+          nameTarget.textContent = form.dataset.playerName || "This player";
+        }
+        transferLeaderModal.showModal();
+      }
+    });
+  });
+  if (transferLeaderModal) {
+    transferLeaderModal.querySelectorAll("[data-cancel-transfer-leader]").forEach((button) => {
+      button.addEventListener("click", () => {
+        pendingTransferLeaderForm = null;
+        transferLeaderModal.close();
+      });
+    });
+    transferLeaderModal.querySelector("[data-confirm-transfer-leader-submit]").addEventListener("click", () => {
+      if (pendingTransferLeaderForm) {
+        pendingTransferLeaderForm.submit();
+      }
+    });
+    transferLeaderModal.addEventListener("click", (event) => {
+      if (event.target === transferLeaderModal) {
+        pendingTransferLeaderForm = null;
+        transferLeaderModal.close();
+      }
+    });
+  }
+
   const modal = document.querySelector("#warplan-modal");
   if (modal) {
     const openButtons = document.querySelectorAll("[data-open-warplan-modal]");
@@ -126,6 +222,7 @@
     const lengthInput = modal.querySelector("[name='plan_length']");
     const progressInput = modal.querySelector("[name='progress_index']");
     const hiddenInputs = Array.from(modal.querySelectorAll("[data-activity-input]"));
+    const selectedCount = modal.querySelector("[data-selected-count]");
     const maxLength = Number(modal.dataset.maxLength);
     const existingProgress = Number(modal.dataset.progressIndex);
     let selected = JSON.parse(modal.dataset.activities || "[]");
@@ -149,9 +246,25 @@
           <span class="selected-path-level">${index + 1}</span>
           <img src="${meta.icon}" alt="">
           <span>${meta.name}</span>
-          <button type="button" aria-label="Remove ${meta.name}" data-remove-index="${index}">Remove</button>
+          <span class="selected-path-actions">
+            <button type="button" aria-label="Move ${meta.name} up" data-move-index="${index}" data-move-direction="-1" ${index === 0 ? "disabled" : ""}>Up</button>
+            <button type="button" aria-label="Move ${meta.name} down" data-move-index="${index}" data-move-direction="1" ${index === selected.length - 1 ? "disabled" : ""}>Down</button>
+            <button type="button" aria-label="Remove ${meta.name}" data-remove-index="${index}">Remove</button>
+          </span>
         `;
         selectedList.appendChild(item);
+      });
+      selectedList.querySelectorAll("[data-move-index]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const fromIndex = Number(button.dataset.moveIndex);
+          const toIndex = fromIndex + Number(button.dataset.moveDirection);
+          if (toIndex < 0 || toIndex >= selected.length) {
+            return;
+          }
+          const [activity] = selected.splice(fromIndex, 1);
+          selected.splice(toIndex, 0, activity);
+          renderSelected();
+        });
       });
       selectedList.querySelectorAll("[data-remove-index]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -162,6 +275,7 @@
       emptyState.hidden = selected.length !== 0;
       lengthInput.value = String(selected.length);
       progressInput.value = String(Math.min(existingProgress, selected.length));
+      selectedCount.textContent = `${selected.length}/${maxLength} selected`;
       hiddenInputs.forEach((input, index) => {
         input.value = selected[index] || "";
       });
@@ -197,11 +311,17 @@
       const payload = JSON.parse(event.data);
       if (payload.type === "party_updated" && payload.party_id === "{{ party.id }}") {
         window.clearTimeout(reloadTimer);
-        reloadTimer = window.setTimeout(() => window.location.reload(), 350);
+        reloadTimer = window.setTimeout(() => {
+          sessionStorage.setItem(scrollKey, String(window.scrollY));
+          window.location.reload();
+        }, 350);
       }
     } catch {
       window.clearTimeout(reloadTimer);
-      reloadTimer = window.setTimeout(() => window.location.reload(), 350);
+      reloadTimer = window.setTimeout(() => {
+        sessionStorage.setItem(scrollKey, String(window.scrollY));
+        window.location.reload();
+      }, 350);
     }
   });
 })();

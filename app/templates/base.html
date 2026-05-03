@@ -20,7 +20,15 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  <script>
+  (() => {
+    document.querySelectorAll("[data-invite-code-input]").forEach((input) => {
+      input.addEventListener("input", () => {
+        input.value = input.value.replace(/\s+/g, "").toUpperCase();
+      });
+    });
+  })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
-

@@ -4,7 +4,13 @@ import pytest
 
 from app.security import csrf_token_from_cookie, encode_session_cookie, verify_csrf_token
 from app.services.parties import create_party, join_party
-from app.services.players import get_current_player, get_player, remove_player_from_party
+from app.services.players import (
+    get_current_player,
+    get_player,
+    leave_party,
+    remove_player_from_party,
+    transfer_party_leader,
+)
 from app.services.warplans import get_activities, save_warplan
 
 
@@ -118,3 +124,42 @@ def test_leader_cannot_remove_self(db_session) -> None:
 
     with pytest.raises(ServiceError):
         remove_player_from_party(db_session, party, leader, leader.id)
+
+
+def test_non_leader_can_leave_party_and_free_slot(db_session) -> None:
+    party, _, _ = create_party(db_session, "Cipher")
+    _, leaving_player, _ = join_party(db_session, party.invite_code, "Landmine")
+
+    leave_party(db_session, party, leaving_player)
+
+    assert get_player(db_session, leaving_player.id) is None
+    _, new_player, _ = join_party(db_session, party.invite_code, "Kaos")
+    assert new_player.slot_number == 2
+
+
+def test_leader_must_transfer_before_leaving(db_session) -> None:
+    from app.services.errors import ServiceError
+
+    party, leader, _ = create_party(db_session, "Cipher")
+
+    with pytest.raises(ServiceError):
+        leave_party(db_session, party, leader)
+
+
+def test_leader_can_transfer_leadership(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, new_leader, _ = join_party(db_session, party.invite_code, "Landmine")
+
+    transfer_party_leader(db_session, party, leader, new_leader.id)
+
+    assert party.leader_player_id == new_leader.id
+
+
+def test_non_leader_cannot_transfer_leadership(db_session) -> None:
+    from app.services.errors import ServiceError
+
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, member, _ = join_party(db_session, party.invite_code, "Landmine")
+
+    with pytest.raises(ServiceError):
+        transfer_party_leader(db_session, party, member, leader.id)

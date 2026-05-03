@@ -25,6 +25,7 @@ class Settings:
     port: int
     sqlite_busy_timeout_ms: int
     sqlite_wal: bool
+    stale_player_minutes: int
 
 
 def _raw_env(name: str, default: str | None = None) -> str | None:
@@ -169,4 +170,5 @@ def get_settings() -> Settings:
         port=_int_env("WARPARTY_PORT", 8080, min_value=1, max_value=65535),
         sqlite_busy_timeout_ms=_int_env("WARPARTY_SQLITE_BUSY_TIMEOUT_MS", 5000, min_value=100),
         sqlite_wal=_bool_env("WARPARTY_SQLITE_WAL", True),
+        stale_player_minutes=_int_env("WARPARTY_STALE_PLAYER_MINUTES", 60, min_value=1),
     )

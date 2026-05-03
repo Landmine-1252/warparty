@@ -11,6 +11,8 @@ Warparty is not affiliated with Blizzard Entertainment.
 - Keep each browser tied to one player identity with a private session cookie.
 - Remember the last player name locally to pre-fill future create and join forms.
 - Let the party leader remove stale members so open slots can be reused.
+- Let non-leaders leave a party and let leaders transfer leadership before leaving.
+- Copy one invite message that includes both the invite URL and short code.
 - Manually enter War Plans from the supported activity set.
 - Mark progress through your own selected activity level, or click completed levels to roll back your own progress.
 - Recalculate the recommended route from persisted player progress.
@@ -166,6 +168,7 @@ If you use `--user 99:100`, make sure `/mnt/user/appdata/warparty` is writable b
 | `WARPARTY_PORT` | `8080` | Container listen port. |
 | `WARPARTY_SQLITE_BUSY_TIMEOUT_MS` | `5000` | SQLite lock wait timeout. |
 | `WARPARTY_SQLITE_WAL` | `true` | Enables SQLite WAL mode. |
+| `WARPARTY_STALE_PLAYER_MINUTES` | `60` | Age after which leader controls treat a player as stale. |
 | `WARPARTY_ENV` | `development` | Set to `production` for container deployments. |
 
 ## Healthcheck

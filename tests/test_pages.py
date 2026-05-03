@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from starlette.requests import Request
 
 from app.main import app
@@ -14,6 +16,8 @@ from app.routers.pages import (
 )
 from app.security import REMEMBERED_PLAYER_NAME_COOKIE, encode_session_cookie
 from app.services.parties import create_party, join_party
+from app.services.players import remove_player_from_party
+from app.services.warplans import save_warplan
 
 
 def test_home_page_renders() -> None:
@@ -78,6 +82,9 @@ def test_party_room_renders_open_slots(db_session) -> None:
     assert b"Party Room" not in response.body
     assert b"Slot 2" in response.body
     assert b"Open" in response.body
+    assert b"Copy Invite" in response.body
+    assert b"Join my Warparty" in response.body
+    assert party.invite_code.encode() in response.body
 
 
 def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
@@ -99,6 +106,8 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b'id="clear-plan-modal"' in response.body
     assert b"Click Activities To Add" in response.body
     assert b"Create Plan" in response.body
+    assert b"0/5 selected" in response.body
+    assert b"data-selected-count" in response.body
     assert b"Add War Plan" not in response.body
     assert b"window.confirm" not in response.body
 
@@ -133,9 +142,34 @@ def test_warplan_modal_uses_visual_picker_order(db_session) -> None:
     )
 
 
-def test_party_room_renders_leader_remove_player_modal(db_session) -> None:
+def test_party_room_hides_leader_remove_when_party_not_full_and_player_not_stale(
+    db_session,
+) -> None:
+    party, leader, token = create_party(db_session, "Cipher")
+    _, member, _ = join_party(db_session, party.invite_code, "Landmine")
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(request, party.id, encode_session_cookie(leader.id, token), db_session)
+
+    assert response.status_code == 200
+    assert b"Make Leader" in response.body
+    assert b'id="remove-player-modal"' not in response.body
+    assert f"/players/{member.id}/remove".encode() not in response.body
+
+
+def test_party_room_renders_leader_remove_when_party_is_full(db_session) -> None:
     party, leader, token = create_party(db_session, "Cipher")
     join_party(db_session, party.invite_code, "Landmine")
+    join_party(db_session, party.invite_code, "Kaos")
+    join_party(db_session, party.invite_code, "Shatter")
     request = Request(
         {
             "type": "http",
@@ -150,8 +184,96 @@ def test_party_room_renders_leader_remove_player_modal(db_session) -> None:
 
     assert response.status_code == 200
     assert b'id="remove-player-modal"' in response.body
-    assert b"Remove Player" in response.body
     assert b"data-confirm-remove-player" in response.body
+    assert b'id="transfer-leader-modal"' in response.body
+
+
+def test_party_room_renders_leader_remove_when_player_is_stale(db_session) -> None:
+    party, leader, token = create_party(db_session, "Cipher")
+    _, stale_player, _ = join_party(db_session, party.invite_code, "Landmine")
+    stale_player.last_seen_at = datetime.now(UTC) - timedelta(hours=2)
+    db_session.commit()
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(request, party.id, encode_session_cookie(leader.id, token), db_session)
+
+    assert response.status_code == 200
+    assert b"Stale" in response.body
+    assert b"data-confirm-remove-player" in response.body
+
+
+def test_party_room_renders_leave_party_for_non_leader(db_session) -> None:
+    party, _, _ = create_party(db_session, "Cipher")
+    _, member, token = join_party(db_session, party.invite_code, "Landmine")
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(request, party.id, encode_session_cookie(member.id, token), db_session)
+
+    assert response.status_code == 200
+    assert b"Leave Party" in response.body
+    assert b'id="leave-party-modal"' in response.body
+
+
+def test_party_room_shows_removed_player_notice(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, removed_player, removed_token = join_party(db_session, party.invite_code, "Landmine")
+    remove_player_from_party(db_session, party, leader, removed_player.id)
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(
+        request,
+        party.id,
+        encode_session_cookie(removed_player.id, removed_token),
+        db_session,
+    )
+
+    assert response.status_code == 200
+    assert b"Your previous slot was removed" in response.body
+    assert b"Rejoin" in response.body
+
+
+def test_route_marks_current_step(db_session) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    save_warplan(db_session, player, ["helltide", "pit"])
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(request, party.id, encode_session_cookie(player.id, token), db_session)
+
+    assert response.status_code == 200
+    assert b"route-card-next" in response.body
+    assert b"Current" in response.body
 
 
 def test_join_page_full_party_explains_retry(db_session) -> None:

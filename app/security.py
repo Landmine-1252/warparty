@@ -87,6 +87,10 @@ def set_session_cookie(response: Response, player_id: int, token: str) -> None:
     )
 
 
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(COOKIE_NAME)
+
+
 def set_remembered_player_name_cookie(response: Response, display_name: str) -> None:
     settings = get_settings()
     response.set_cookie(
