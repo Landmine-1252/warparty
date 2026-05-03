@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Cookie, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.constants import ACTIVITIES, MAX_PLAN_LENGTH, activity_icon_path, activity_name
 from app.database import get_db
 from app.realtime import manager
-from app.security import COOKIE_NAME, set_session_cookie
+from app.security import COOKIE_NAME, csrf_token_from_cookie, set_session_cookie, verify_csrf_token
 from app.services.errors import ServiceError
 from app.services.invites import invite_url
 from app.services.parties import create_party, get_party, get_party_by_invite_code, join_party
@@ -98,18 +100,19 @@ def party_room(
     return templates.TemplateResponse(
         request,
         "party.html",
-        _party_context(request, party, current_player, route),
+        _party_context(request, party, current_player, route, session_cookie),
     )
 
 
 @router.post("/party/{party_id}/progress/complete")
 async def complete_progress_page(
     party_id: str,
+    csrf_token: str = Form(""),
     session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     player = get_current_player(db, party_id, session_cookie)
-    if player is None:
+    if player is None or not verify_csrf_token(session_cookie, party_id, csrf_token):
         return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
     try:
         mark_current_complete(db, player)
@@ -122,11 +125,12 @@ async def complete_progress_page(
 @router.post("/party/{party_id}/progress/undo")
 async def undo_progress_page(
     party_id: str,
+    csrf_token: str = Form(""),
     session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     player = get_current_player(db, party_id, session_cookie)
-    if player is not None:
+    if player is not None and verify_csrf_token(session_cookie, party_id, csrf_token):
         try:
             undo_last_progress(db, player)
         except ServiceError:
@@ -139,11 +143,12 @@ async def undo_progress_page(
 async def set_progress_page(
     party_id: str,
     progress_index: int = Form(...),
+    csrf_token: str = Form(""),
     session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     player = get_current_player(db, party_id, session_cookie)
-    if player is not None:
+    if player is not None and verify_csrf_token(session_cookie, party_id, csrf_token):
         try:
             set_progress_index(db, player, progress_index)
         except ServiceError:
@@ -186,6 +191,7 @@ def my_warplan(
             "progress_index": (
                 current_player.warplan.progress_index if current_player.warplan else 0
             ),
+            "csrf_token": csrf_token_from_cookie(session_cookie, party_id),
             "error": None,
         },
     )
@@ -197,6 +203,7 @@ async def save_my_warplan(
     party_id: str,
     plan_length: int = Form(...),
     progress_index: int = Form(0),
+    csrf_token: str = Form(""),
     activity_1: str = Form(""),
     activity_2: str = Form(""),
     activity_3: str = Form(""),
@@ -211,6 +218,12 @@ async def save_my_warplan(
     current_player = get_current_player(db, party_id, session_cookie)
     if current_player is None:
         return RedirectResponse(f"/join/{party.invite_code}", status_code=status.HTTP_303_SEE_OTHER)
+    if not verify_csrf_token(session_cookie, party_id, csrf_token):
+        return _error_page(
+            request,
+            "Security token expired. Refresh and try again.",
+            status.HTTP_403_FORBIDDEN,
+        )
 
     selected = [activity_1, activity_2, activity_3, activity_4, activity_5][:plan_length]
     try:
@@ -226,6 +239,7 @@ async def save_my_warplan(
                 "activities": selected,
                 "max_plan_length": MAX_PLAN_LENGTH,
                 "progress_index": progress_index,
+                "csrf_token": csrf_token_from_cookie(session_cookie, party_id),
                 "error": str(exc),
             },
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -237,11 +251,12 @@ async def save_my_warplan(
 @router.post("/party/{party_id}/my-warplan/delete")
 async def delete_my_warplan(
     party_id: str,
+    csrf_token: str = Form(""),
     session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     current_player = get_current_player(db, party_id, session_cookie)
-    if current_player is not None:
+    if current_player is not None and verify_csrf_token(session_cookie, party_id, csrf_token):
         delete_warplan(db, current_player)
         await manager.broadcast(party_id, "warplan_deleted")
     return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -252,7 +267,19 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-def _party_context(request: Request, party: Any, current_player: Any, route: Any) -> dict[str, Any]:
+@router.get("/readyz")
+def readyz(db: Session = Depends(get_db)) -> dict[str, str]:
+    db.execute(text("SELECT 1"))
+    return {"status": "ready"}
+
+
+def _party_context(
+    request: Request,
+    party: Any,
+    current_player: Any,
+    route: Any,
+    session_cookie: str | None,
+) -> dict[str, Any]:
     settings = get_settings()
     max_players = settings.max_players_per_party
     occupied_slots = {player.slot_number for player in party.players}
@@ -275,6 +302,7 @@ def _party_context(request: Request, party: Any, current_player: Any, route: Any
         "activity_icon_path": activity_icon_path,
         "get_activities": get_activities,
         "next_action": _next_action(current_player, ready_players, route),
+        "csrf_token": csrf_token_from_cookie(session_cookie, party.id) if current_player else None,
     }
 
 
@@ -328,7 +356,9 @@ def _next_action(current_player: Any, ready_players: list[Any], route: list[Any]
 
 
 def _error_redirect(message: str) -> RedirectResponse:
-    return RedirectResponse(f"/?error={message}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        f"/?{urlencode({'error': message})}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 def _error_page(request: Request, message: str, status_code: int) -> HTMLResponse:

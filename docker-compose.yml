@@ -5,12 +5,17 @@ services:
       - "8080:8080"
     environment:
       WARPARTY_PUBLIC_BASE_URL: http://localhost:8080
-      WARPARTY_DATA_DIR: /app/App_Data
-      WARPARTY_DATABASE_PATH: /app/App_Data/warparty.db
-      WARPARTY_SECRET_KEY: local-compose-change-me
+      WARPARTY_DATA_DIR: /data
+      WARPARTY_DATABASE_PATH: /data/warparty.db
+      WARPARTY_ALLOWED_HOSTS: localhost,127.0.0.1
     volumes:
-      - warparty-data:/app/App_Data
+      - warparty-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   warparty-data:
-

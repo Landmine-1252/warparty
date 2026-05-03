@@ -75,8 +75,22 @@ The service layer only exposes one-step progress operations:
 
 - `mark_current_complete` increments by one.
 - `undo_last_progress` decrements by one.
+- `set_progress_index` validates bounds and supports the party-room click workflow that marks progress through a selected level or rolls completed progress back to a clicked level.
 
-Future steps are not directly addressable from the UI or API.
+All progress changes are scoped to the current authenticated player. A target progress index must be between `0` and the player's plan length.
+
+## SQLite Notes
+
+SQLite is configured in `app.database` through SQLAlchemy. Startup creates the data directory and database parent directory, verifies that the database file is writable, imports models, then runs `Base.metadata.create_all`.
+
+Connection pragmas:
+
+- `foreign_keys=ON`
+- `busy_timeout=<WARPARTY_SQLITE_BUSY_TIMEOUT_MS>`
+- `journal_mode=WAL` when `WARPARTY_SQLITE_WAL=true`
+- `synchronous=NORMAL`
+
+The app is designed for one running container per SQLite file. Do not point multiple Warparty containers at the same database without replacing SQLite with a server database or adding a coordination layer.
 
 ## Real-Time Updates
 
@@ -105,8 +119,7 @@ Run locally:
 ```bash
 docker run --rm -p 8080:8080 \
   -e WARPARTY_PUBLIC_BASE_URL=http://localhost:8080 \
-  -e WARPARTY_SECRET_KEY=change-this-secret \
-  -v warparty-data:/app/App_Data \
+  -v warparty-data:/data \
   warparty
 ```
 
@@ -116,7 +129,21 @@ Compose:
 docker compose up --build
 ```
 
-The app listens on port `8080` and persists SQLite data in `/app/App_Data`.
+The app listens on port `8080` and persists SQLite data in `/data`. The image runs as non-root UID/GID `10001`. Docker/Podman named volumes work without extra setup; host bind mounts must be writable by UID/GID `10001` or by whichever user is supplied through `docker run --user` / `podman run --user`.
+
+The Dockerfile uses `uv.lock` through a builder stage and copies only the virtual environment and application source into the runtime stage. Runtime logs go to stdout/stderr through uvicorn.
+
+For rootless Podman bind mounts, prefer either a named volume or:
+
+```bash
+podman run --rm --userns keep-id --user "$(id -u):$(id -g)" \
+  -p 8080:8080 \
+  -e WARPARTY_PUBLIC_BASE_URL=http://localhost:8080 \
+  -v "$(pwd)/data:/data:Z" \
+  warparty
+```
+
+Unraid users should mount `/mnt/user/appdata/warparty` to `/data`. `PUID`/`PGID` environment variables are not consumed; use directory ownership or Docker `--user`.
 
 ## Container Publishing
 
@@ -135,3 +162,4 @@ If publishing fails with `permission_denied: write_package`, open the package se
 - No Alembic migrations yet; first version uses `Base.metadata.create_all`.
 - WebSocket updates are in-process and single-container only.
 - Session cookies store `player_id:token`; only the token hash is persisted in SQLite.
+- `WARPARTY_SECRET_KEY` is optional. If unset, a persistent secret is generated in the data directory.

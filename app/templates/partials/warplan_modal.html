@@ -18,6 +18,7 @@
 
     <input type="hidden" name="plan_length" value="{{ my_activities|length }}">
     <input type="hidden" name="progress_index" value="{{ my_progress }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% for index in range(1, 6) %}
       <input data-activity-input type="hidden" name="activity_{{ index }}" value="{{ my_activities[index - 1] if my_activities|length >= index else '' }}">
     {% endfor %}

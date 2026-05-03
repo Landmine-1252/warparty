@@ -39,6 +39,7 @@
             <li class="level-list-entry">
               {% if current_player and current_player.id == slot_player.id %}
                 <form method="post" action="/party/{{ party.id }}/progress/set">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   {% if level <= progress_index %}
                     <input type="hidden" name="progress_index" value="{{ level - 1 }}">
                   {% else %}
@@ -91,6 +92,7 @@
         <button class="button-secondary" type="button" data-open-warplan-modal>{% if slot_player.warplan %}Edit Plan{% else %}Create Plan{% endif %}</button>
         {% if slot_player.warplan %}
           <form method="post" action="/party/{{ party.id }}/my-warplan/delete" data-confirm-clear>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="button-danger" type="submit">Clear Plan</button>
           </form>
         {% endif %}

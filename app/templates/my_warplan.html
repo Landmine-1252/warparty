@@ -12,6 +12,7 @@
 </header>
 
 <form class="panel pure-form pure-form-stacked narrow-panel" method="post" action="/party/{{ party.id }}/my-warplan">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <div class="panel-header">
     <h2 class="panel-title">{{ current_player.display_name }}</h2>
   </div>
@@ -53,6 +54,7 @@
 
 {% if current_player.warplan %}
   <form class="narrow-panel delete-form" method="post" action="/party/{{ party.id }}/my-warplan/delete">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="button-danger" type="submit">Delete Plan</button>
   </form>
 {% endif %}

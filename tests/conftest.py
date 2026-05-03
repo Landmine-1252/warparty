@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Generator
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import models
-from app.database import Base
+from app.database import Base, configure_sqlite_connection
 
 
 @pytest.fixture
@@ -18,6 +18,7 @@ def test_sessionmaker(tmp_path) -> Generator[sessionmaker[Session], None, None]:
         connect_args={"check_same_thread": False},
         future=True,
     )
+    event.listen(engine, "connect", lambda connection, _: configure_sqlite_connection(connection))
     TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     Base.metadata.create_all(bind=engine)
     try:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from starlette.requests import Request
 
 from app.main import app
-from app.routers.pages import index, party_room
+from app.routers.pages import healthz, index, party_room, readyz
 from app.security import encode_session_cookie
 from app.services.parties import create_party
 
@@ -15,6 +15,14 @@ def test_home_page_renders() -> None:
 
     assert response.status_code == 200
     assert b"Coordinate Diablo War Plans" in response.body
+
+
+def test_healthz_returns_ok() -> None:
+    assert healthz() == {"status": "ok"}
+
+
+def test_readyz_checks_database(db_session) -> None:
+    assert readyz(db_session) == {"status": "ready"}
 
 
 def test_party_room_renders_open_slots(db_session) -> None:

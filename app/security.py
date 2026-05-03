@@ -7,6 +7,8 @@ import string
 
 from fastapi import Response
 
+from app.config import get_settings
+
 COOKIE_NAME = "warparty_session"
 COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90
 _PUBLIC_ALPHABET = string.ascii_lowercase + string.digits
@@ -33,6 +35,27 @@ def verify_session_token(token: str, expected_hash: str) -> bool:
     return hmac.compare_digest(hash_session_token(token), expected_hash)
 
 
+def csrf_token_for_session(player_id: int, token: str, party_id: str) -> str:
+    settings = get_settings()
+    message = f"{player_id}:{party_id}:{token}".encode()
+    return hmac.new(settings.secret_key.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+
+def csrf_token_from_cookie(raw_cookie: str | None, party_id: str) -> str | None:
+    decoded = decode_session_cookie(raw_cookie)
+    if decoded is None:
+        return None
+    player_id, token = decoded
+    return csrf_token_for_session(player_id, token, party_id)
+
+
+def verify_csrf_token(raw_cookie: str | None, party_id: str, submitted_token: str) -> bool:
+    expected_token = csrf_token_from_cookie(raw_cookie, party_id)
+    if expected_token is None:
+        return False
+    return hmac.compare_digest(expected_token, submitted_token)
+
+
 def encode_session_cookie(player_id: int, token: str) -> str:
     return f"{player_id}:{token}"
 
@@ -51,11 +74,12 @@ def decode_session_cookie(raw_cookie: str | None) -> tuple[int, str] | None:
 
 
 def set_session_cookie(response: Response, player_id: int, token: str) -> None:
+    settings = get_settings()
     response.set_cookie(
         COOKIE_NAME,
         encode_session_cookie(player_id, token),
         max_age=COOKIE_MAX_AGE_SECONDS,
         httponly=True,
-        secure=False,
+        secure=settings.cookie_secure,
         samesite="lax",
     )

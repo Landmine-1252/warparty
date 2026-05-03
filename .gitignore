@@ -9,5 +9,8 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.db
+*.db-*
 App_Data/
+data/
 .env
+.env.*

@@ -7,10 +7,13 @@ __pycache__
 *.pyc
 *.pyo
 *.db
+*.db-*
 *.sqlite
 *.sqlite3
 App_Data
+data
 .env
+.env.*
 .git
 .github
 tests

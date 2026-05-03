@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.security import encode_session_cookie
+from app.security import csrf_token_from_cookie, encode_session_cookie, verify_csrf_token
 from app.services.parties import create_party, join_party
 from app.services.players import get_current_player
 from app.services.warplans import get_activities, save_warplan
@@ -76,3 +76,14 @@ def test_get_current_player_rejects_other_party_cookie(db_session) -> None:
 
     assert get_current_player(db_session, party_one.id, cookie) == player_one
     assert get_current_player(db_session, party_two.id, cookie) is None
+
+
+def test_csrf_token_is_bound_to_session_and_party(db_session) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    cookie = encode_session_cookie(player.id, token)
+    csrf_token = csrf_token_from_cookie(cookie, party.id)
+
+    assert csrf_token is not None
+    assert verify_csrf_token(cookie, party.id, csrf_token)
+    assert not verify_csrf_token(cookie, "other-party", csrf_token)
+    assert not verify_csrf_token(cookie, party.id, "bad-token")
