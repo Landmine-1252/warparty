@@ -21,6 +21,17 @@ ACTIVITIES: tuple[Activity, ...] = (
 
 ACTIVITY_BY_KEY: dict[str, Activity] = {activity.key: activity for activity in ACTIVITIES}
 ACTIVITY_ORDER: tuple[str, ...] = tuple(activity.key for activity in ACTIVITIES)
+ACTIVITY_PICKER_ORDER: tuple[str, ...] = (
+    "helltide",
+    "nightmare_dungeon",
+    "lair_boss",
+    "infernal_hordes",
+    "pit",
+    "kurast_undercity",
+)
+ACTIVITY_PICKER_ACTIVITIES: tuple[Activity, ...] = tuple(
+    ACTIVITY_BY_KEY[activity_key] for activity_key in ACTIVITY_PICKER_ORDER
+)
 MAX_PLAN_LENGTH = 5
 MIN_PLAN_LENGTH = 1
 

@@ -103,6 +103,36 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"window.confirm" not in response.body
 
 
+def test_warplan_modal_uses_visual_picker_order(db_session) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(request, party.id, encode_session_cookie(player.id, token), db_session)
+    body = response.body.decode()
+
+    assert body.index('data-activity-key="helltide"') < body.index(
+        'data-activity-key="nightmare_dungeon"'
+    )
+    assert body.index('data-activity-key="nightmare_dungeon"') < body.index(
+        'data-activity-key="lair_boss"'
+    )
+    assert body.index('data-activity-key="lair_boss"') < body.index(
+        'data-activity-key="infernal_hordes"'
+    )
+    assert body.index('data-activity-key="infernal_hordes"') < body.index('data-activity-key="pit"')
+    assert body.index('data-activity-key="pit"') < body.index(
+        'data-activity-key="kurast_undercity"'
+    )
+
+
 def test_party_room_renders_leader_remove_player_modal(db_session) -> None:
     party, leader, token = create_party(db_session, "Cipher")
     join_party(db_session, party.invite_code, "Landmine")

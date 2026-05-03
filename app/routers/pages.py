@@ -10,7 +10,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.constants import ACTIVITIES, MAX_PLAN_LENGTH, activity_icon_path, activity_name
+from app.constants import (
+    ACTIVITY_PICKER_ACTIVITIES,
+    MAX_PLAN_LENGTH,
+    activity_icon_path,
+    activity_name,
+)
 from app.database import get_db
 from app.realtime import manager
 from app.security import (
@@ -234,7 +239,7 @@ def my_warplan(
         {
             "party": party,
             "current_player": current_player,
-            "activity_options": ACTIVITIES,
+            "activity_options": ACTIVITY_PICKER_ACTIVITIES,
             "activities": activities,
             "max_plan_length": MAX_PLAN_LENGTH,
             "progress_index": (
@@ -284,7 +289,7 @@ async def save_my_warplan(
             {
                 "party": party,
                 "current_player": current_player,
-                "activity_options": ACTIVITIES,
+                "activity_options": ACTIVITY_PICKER_ACTIVITIES,
                 "activities": selected,
                 "max_plan_length": MAX_PLAN_LENGTH,
                 "progress_index": progress_index,
@@ -371,7 +376,7 @@ def _party_context(
         "open_slots": max_players - len(occupied_slots),
         "ready_players_count": len(ready_players),
         "invite_url": invite_url(party),
-        "activity_options": ACTIVITIES,
+        "activity_options": ACTIVITY_PICKER_ACTIVITIES,
         "activity_name": activity_name,
         "activity_icon_path": activity_icon_path,
         "get_activities": get_activities,
