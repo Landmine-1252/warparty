@@ -375,6 +375,9 @@
     if (hadCurrentPlayer && !hasCurrentPlayer) {
       closeOpenDialogs();
       removeModalRegion();
+      if (ws) {
+        ws.close();
+      }
       showToast("Your party access changed.");
     }
   }
@@ -382,6 +385,7 @@
   let refreshTimer = null;
   let refreshInFlight = false;
   let pendingRefresh = false;
+  let ws = null;
 
   async function refreshPartyLive() {
     if (refreshInFlight) {
@@ -427,7 +431,7 @@
   bindPartyContent(document);
 
   const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${scheme}://${window.location.host}/ws/party/${partyId}`);
+  ws = new WebSocket(`${scheme}://${window.location.host}/ws/party/${partyId}`);
   ws.addEventListener("message", (event) => {
     let payload = null;
     try {

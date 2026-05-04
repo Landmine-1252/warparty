@@ -18,7 +18,8 @@ Warparty is not affiliated with Blizzard Entertainment.
 - Invite players with a join link or short invite code.
 - Support one Diablo party: 4 player slots.
 - Let each player edit only their own War Plan and progress.
-- Let the party leader remove players and reopen slots.
+- Let the party leader remove players, rotate the invite code, and reopen slots.
+- Keep party state visible only to current members.
 - Recalculate the recommended route as plans and progress change.
 - Update connected party pages in real time.
 - Store everything in SQLite under `/data` when running in Docker.

@@ -71,7 +71,7 @@ def test_readyz_checks_database(db_session) -> None:
     assert readyz(db_session) == {"status": "ready"}
 
 
-def test_party_room_renders_open_slots(db_session) -> None:
+def test_party_room_requires_current_player(db_session) -> None:
     party, _, _ = create_party(db_session, "Cipher")
     request = Request(
         {
@@ -85,14 +85,12 @@ def test_party_room_renders_open_slots(db_session) -> None:
 
     response = party_room(request, party.id, None, db_session)
 
-    assert response.status_code == 200
-    assert b"Player War Plans" in response.body
-    assert b"Party Room" not in response.body
-    assert b"Slot 2" in response.body
-    assert b"Open" in response.body
-    assert b"Ask a party member for an invite." in response.body
+    assert response.status_code == 403
+    assert b"Private Warparty" in response.body
+    assert b"Join this Warparty with a current invite link or invite code" in response.body
+    assert b"Player War Plans" not in response.body
+    assert b"Recommended Party Route" not in response.body
     assert b"Copy Invite" not in response.body
-    assert b"Join my Warparty" not in response.body
     assert party.invite_code.encode() not in response.body
 
 
@@ -113,6 +111,9 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert response.status_code == 200
     assert b'id="warplan-modal"' in response.body
     assert b'id="clear-plan-modal"' in response.body
+    assert b"Slot 2" in response.body
+    assert b"Open" in response.body
+    assert b"Share the invite link." in response.body
     assert b"Click Activities To Add" in response.body
     assert b"Create Plan" in response.body
     assert b"0/5 selected" in response.body
@@ -295,10 +296,42 @@ def test_party_room_shows_removed_player_notice(db_session) -> None:
         db_session,
     )
 
-    assert response.status_code == 200
-    assert b"Your previous slot was removed" in response.body
+    assert response.status_code == 403
+    assert b"Removed From Warparty" in response.body
+    assert b"You were removed from this Warparty" in response.body
+    assert b"The invite code has changed" in response.body
     assert b"Ask the party leader for a new invite" in response.body
+    assert b"Player War Plans" not in response.body
+    assert b"Recommended Party Route" not in response.body
     assert f"/join/{party.invite_code}".encode() not in response.body
+
+
+def test_party_room_live_removed_player_gets_notice_without_party_state(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, removed_player, removed_token = join_party(db_session, party.invite_code, "Landmine")
+    remove_player_from_party(db_session, party, leader, removed_player.id)
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}/live",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room_live(
+        request,
+        party.id,
+        encode_session_cookie(removed_player.id, removed_token),
+        db_session,
+    )
+
+    assert response.status_code == 200
+    assert b"data-party-access-denied" in response.body
+    assert b"Removed From Warparty" in response.body
+    assert b"Player War Plans" not in response.body
+    assert b"Recommended Party Route" not in response.body
 
 
 def test_my_warplan_without_current_player_redirects_without_invite(db_session) -> None:

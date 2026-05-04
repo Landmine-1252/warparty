@@ -158,8 +158,15 @@ def party_room(
     if party is None:
         return _error_page(request, "Warparty not found.", status.HTTP_404_NOT_FOUND)
     current_player = get_current_player(db, party_id, session_cookie)
+    access_denied = _party_access_denied(current_player, db, party_id, session_cookie)
+    if access_denied is not None:
+        return _party_access_denied_page(
+            request,
+            access_denied["title"],
+            access_denied["message"],
+            status.HTTP_403_FORBIDDEN,
+        )
     route = recommended_route_for_party(party)
-    removed_player_notice = _removed_player_notice(db, party_id, current_player, session_cookie)
     return templates.TemplateResponse(
         request,
         "party.html",
@@ -169,7 +176,7 @@ def party_room(
             current_player,
             route,
             session_cookie,
-            removed_player_notice,
+            None,
         ),
     )
 
@@ -185,8 +192,17 @@ def party_room_live(
     if party is None:
         return _error_page(request, "Warparty not found.", status.HTTP_404_NOT_FOUND)
     current_player = get_current_player(db, party_id, session_cookie)
+    access_denied = _party_access_denied(current_player, db, party_id, session_cookie)
+    if access_denied is not None:
+        return templates.TemplateResponse(
+            request,
+            "partials/party_access_denied.html",
+            {
+                "access_denied_title": access_denied["title"],
+                "access_denied_message": access_denied["message"],
+            },
+        )
     route = recommended_route_for_party(party)
-    removed_player_notice = _removed_player_notice(db, party_id, current_player, session_cookie)
     return templates.TemplateResponse(
         request,
         "partials/party_live.html",
@@ -196,7 +212,7 @@ def party_room_live(
             current_player,
             route,
             session_cookie,
-            removed_player_notice,
+            None,
         ),
     )
 
@@ -549,6 +565,23 @@ def _error_page(request: Request, message: str, status_code: int) -> HTMLRespons
     )
 
 
+def _party_access_denied_page(
+    request: Request,
+    title: str,
+    message: str,
+    status_code: int,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "party_access_denied.html",
+        {
+            "access_denied_title": title,
+            "access_denied_message": message,
+        },
+        status_code=status_code,
+    )
+
+
 def _remembered_player_name(request: Request) -> str:
     return request.cookies.get(REMEMBERED_PLAYER_NAME_COOKIE, "")
 
@@ -593,27 +626,40 @@ def _player_is_stale(player: Any, stale_minutes: int) -> bool:
     return datetime.now(UTC) - last_seen_at > timedelta(minutes=stale_minutes)
 
 
-def _removed_player_notice(
+def _party_access_denied(
+    current_player: Any,
     db: Session,
     party_id: str,
-    current_player: Any,
     session_cookie: str | None,
-) -> str | None:
+) -> dict[str, str] | None:
     if current_player is not None:
         return None
     decoded = decode_session_cookie(session_cookie)
     if decoded is None:
-        return None
+        return {
+            "title": "Private Warparty",
+            "message": "Join this Warparty with a current invite link or invite code to view it.",
+        }
     player_id, _ = decoded
     player = get_player(db, player_id)
     if player is None:
-        return (
-            "Your previous slot was removed. Ask the party leader for a new invite "
-            "if you should rejoin."
-        )
+        return {
+            "title": "Removed From Warparty",
+            "message": (
+                "You were removed from this Warparty. The invite code has changed, "
+                "so this browser can no longer view the party. Ask the party leader "
+                "for a new invite if you should rejoin."
+            ),
+        }
     if player.party_id == party_id:
-        return (
-            "Your previous session is no longer valid. Ask the party leader for a new "
-            "invite if you should rejoin."
-        )
-    return None
+        return {
+            "title": "Session Expired",
+            "message": (
+                "Your previous session is no longer valid. Ask the party leader for a "
+                "new invite if you should rejoin."
+            ),
+        }
+    return {
+        "title": "Private Warparty",
+        "message": "Join this Warparty with a current invite link or invite code to view it.",
+    }
