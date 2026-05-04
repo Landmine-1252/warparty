@@ -82,9 +82,7 @@ def leave_party(db: Session, party: Party, player: Player) -> None:
             None,
         )
         if successor is None:
-            raise ServiceError(
-                "Slot 2 must be occupied before the leader can leave this Warparty."
-            )
+            raise ServiceError("Slot 2 must be occupied before the leader can leave this Warparty.")
         party.leader_player_id = successor.id
 
     db.delete(player)
