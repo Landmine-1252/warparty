@@ -157,6 +157,14 @@ GET /readyz
 
 `/readyz` also checks SQLite.
 
+## License
+
+Warparty is licensed under the PolyForm Noncommercial License 1.0.0.
+
+You can use, copy, modify, and share Warparty for noncommercial purposes. Commercial use is not
+allowed without a separate license from the copyright holders. This is a source-available license,
+not an OSI open-source license.
+
 ## Notes
 
 Warparty is designed for a single small party app container. SQLite and in-process WebSockets are
