@@ -5,7 +5,11 @@
         <span class="slot-label">Transfer Leader</span>
         <h2>Make this player leader?</h2>
       </div>
-      <button class="icon-button" type="button" data-cancel-transfer-leader aria-label="Close">x</button>
+      <button class="button-icon modal-close" type="button" data-cancel-transfer-leader aria-label="Close" title="Close">
+        <svg class="button-svg" aria-hidden="true">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
     </div>
     <p class="modal-copy">
       <span data-transfer-leader-name>This player</span> will be able to remove party members and transfer leadership.

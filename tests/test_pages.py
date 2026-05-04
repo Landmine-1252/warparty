@@ -121,6 +121,14 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"Create Plan" in response.body
     assert b"0/5 selected" in response.body
     assert b"data-selected-count" in response.body
+    assert b"Copy Code" in response.body
+    assert f'data-copy="{party.invite_code}"'.encode() in response.body
+    assert b"data-shortcut-edit-plan" in response.body
+    assert b"data-shortcut-copy-invite" in response.body
+    assert b"data-shortcut-copy-code" in response.body
+    assert b'href="#icon-x"' in response.body
+    assert b'href="#icon-link"' in response.body
+    assert b'href="#icon-hash"' in response.body
     assert b"Add War Plan" not in response.body
     assert b"Open Invite" not in response.body
     assert f'data-copy="{invite_url(party)}"'.encode() in response.body
@@ -213,6 +221,7 @@ def test_party_room_renders_leader_remove_for_member_slot(
     assert f"/players/{member.id}/remove".encode() in response.body
     assert b'aria-label="Remove Landmine"' in response.body
     assert b"button-icon-danger" in response.body
+    assert b'href="#icon-trash"' in response.body
 
 
 def test_party_room_renders_leader_remove_when_party_is_full(db_session) -> None:
@@ -278,6 +287,8 @@ def test_party_room_renders_leave_party_for_non_leader(db_session) -> None:
     assert response.status_code == 200
     assert b"Leave Party" in response.body
     assert b'id="leave-party-modal"' in response.body
+    assert b'class="nav-leave-form"' in response.body
+    assert b'<button class="nav-link-button nav-link-danger" type="submit">Leave</button>' in response.body
 
 
 def test_party_room_shows_removed_player_notice(db_session) -> None:
@@ -434,6 +445,8 @@ def test_current_player_ready_badge_is_hidden_and_plan_levels_are_clickable(
     assert b"Undo Helltide" in response.body
     assert b"Mark Pit complete" in response.body
     assert b"Complete through level 3: Lair Boss" in response.body
+    assert b"data-shortcut-undo-progress" in response.body
+    assert b"data-shortcut-mark-current" in response.body
     assert b"Undo Last" not in response.body
 
 

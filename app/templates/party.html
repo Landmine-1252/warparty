@@ -35,6 +35,14 @@
     toast.dataset.timerId = String(timerId);
   }
 
+  function iconSvg(name) {
+    return `
+      <svg class="button-svg" aria-hidden="true">
+        <use href="#icon-${name}"></use>
+      </svg>
+    `;
+  }
+
   function bindCopyButtons(root) {
     root.querySelectorAll("[data-copy]").forEach((button) => {
       if (button.dataset.copyBound) {
@@ -44,7 +52,7 @@
       button.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(button.dataset.copy);
-          showToast("Invite copied");
+          showToast(button.dataset.copyLabel || "Copied");
         } catch {
           showToast("Copy failed");
         }
@@ -248,6 +256,44 @@
     });
   }
 
+  function bindProgressForms(root) {
+    root.querySelectorAll("[data-progress-form]").forEach((form) => {
+      if (form.dataset.progressBound) {
+        return;
+      }
+      form.dataset.progressBound = "true";
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (form.dataset.progressInFlight) {
+          return;
+        }
+        form.dataset.progressInFlight = "true";
+        const submitter = event.submitter || form.querySelector("button[type='submit']");
+        if (submitter) {
+          submitter.disabled = true;
+        }
+        try {
+          const response = await fetch(form.action, {
+            method: form.method,
+            body: new FormData(form),
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+          });
+          if (!response.ok) {
+            throw new Error(`Progress update failed with ${response.status}`);
+          }
+          await refreshPartyLive();
+        } catch {
+          showToast("Progress update failed.");
+        } finally {
+          delete form.dataset.progressInFlight;
+          if (submitter) {
+            submitter.disabled = false;
+          }
+        }
+      });
+    });
+  }
+
   const modal = document.querySelector("#warplan-modal");
   if (modal) {
     const closeButtons = modal.querySelectorAll("[data-close-warplan-modal]");
@@ -285,9 +331,9 @@
             <strong>${meta.name}</strong>
           </span>
           <span class="selected-plan-controls">
-            <button class="button-icon button-icon-secondary" type="button" aria-label="Move ${meta.name} up" title="Move up" data-move-index="${index}" data-move-direction="-1" ${index === 0 ? "disabled" : ""}>^</button>
-            <button class="button-icon button-icon-secondary" type="button" aria-label="Move ${meta.name} down" title="Move down" data-move-index="${index}" data-move-direction="1" ${index === selected.length - 1 ? "disabled" : ""}>v</button>
-            <button class="button-icon button-icon-danger" type="button" aria-label="Remove ${meta.name}" title="Remove" data-remove-index="${index}">x</button>
+            <button class="button-icon button-icon-secondary" type="button" aria-label="Move ${meta.name} up" title="Move up" data-move-index="${index}" data-move-direction="-1" ${index === 0 ? "disabled" : ""}>${iconSvg("chevron-up")}</button>
+            <button class="button-icon button-icon-secondary" type="button" aria-label="Move ${meta.name} down" title="Move down" data-move-index="${index}" data-move-direction="1" ${index === selected.length - 1 ? "disabled" : ""}>${iconSvg("chevron-down")}</button>
+            <button class="button-icon button-icon-danger" type="button" aria-label="Remove ${meta.name}" title="Remove" data-remove-index="${index}">${iconSvg("trash")}</button>
           </span>
         `;
         selectedList.appendChild(item);
@@ -342,6 +388,7 @@
 
   function bindPartyContent(root) {
     bindCopyButtons(root);
+    bindProgressForms(root);
     bindClearForms(root);
     bindRemovePlayerForms(root);
     bindLeavePartyForms(root);
@@ -360,6 +407,13 @@
     }
   }
 
+  function syncNavLeaveForm(liveRegion) {
+    const leaveForm = document.querySelector("[data-nav-leave-form]");
+    if (leaveForm) {
+      leaveForm.hidden = liveRegion.dataset.canCurrentPlayerLeave !== "true";
+    }
+  }
+
   function applyLiveHtml(html) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
@@ -373,6 +427,7 @@
     const hasCurrentPlayer = Boolean(nextLiveRegion.dataset.currentPlayerId);
     liveRegion.replaceWith(nextLiveRegion);
     bindPartyContent(nextLiveRegion);
+    syncNavLeaveForm(nextLiveRegion);
 
     if (hadCurrentPlayer && !hasCurrentPlayer) {
       closeOpenDialogs();
@@ -431,6 +486,58 @@
   }
 
   bindPartyContent(document);
+
+  function activeElementAcceptsText() {
+    const element = document.activeElement;
+    if (!element) {
+      return false;
+    }
+    const tagName = element.tagName;
+    return element.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+  }
+
+  function clickShortcutTarget(selector) {
+    const target = document.querySelector(selector);
+    if (!target || target.disabled) {
+      return false;
+    }
+    target.click();
+    return true;
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.defaultPrevented ||
+      event.ctrlKey ||
+      event.altKey ||
+      event.metaKey ||
+      activeElementAcceptsText()
+    ) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    if (key === "e") {
+      if (!document.querySelector("dialog[open]") && clickShortcutTarget("[data-shortcut-edit-plan]")) {
+        event.preventDefault();
+      }
+      return;
+    }
+    if (document.querySelector("dialog[open]")) {
+      return;
+    }
+
+    const shortcuts = {
+      m: "[data-shortcut-mark-current]",
+      u: "[data-shortcut-undo-progress]",
+      l: "[data-shortcut-copy-invite]",
+      c: "[data-shortcut-copy-code]"
+    };
+    const selector = shortcuts[key];
+    if (selector && clickShortcutTarget(selector)) {
+      event.preventDefault();
+    }
+  });
 
   const scheme = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${scheme}://${window.location.host}/ws/party/${partyId}`);

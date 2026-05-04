@@ -172,11 +172,22 @@ def test_non_leader_can_leave_party_and_free_slot(db_session) -> None:
     assert new_player.slot_number == 2
 
 
-def test_leader_must_transfer_before_leaving(db_session) -> None:
+def test_solo_leader_cannot_leave_party(db_session) -> None:
     party, leader, _ = create_party(db_session, "Cipher")
 
     with pytest.raises(ServiceError):
         leave_party(db_session, party, leader)
+
+
+def test_leader_leave_promotes_slot_two_player(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, slot_two_player, _ = join_party(db_session, party.invite_code, "Landmine")
+
+    leave_party(db_session, party, leader)
+
+    assert get_player(db_session, leader.id) is None
+    assert party.leader_player_id == slot_two_player.id
+    assert get_player(db_session, slot_two_player.id) is not None
 
 
 def test_leader_can_transfer_leadership(db_session) -> None:

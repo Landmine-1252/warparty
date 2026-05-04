@@ -13,7 +13,11 @@
         <span class="slot-label">My War Plan</span>
         <h2 class="modal-title">{{ current_player.display_name }}</h2>
       </div>
-      <button class="button-icon modal-close" type="button" data-close-warplan-modal aria-label="Close War Plan editor" title="Close">x</button>
+      <button class="button-icon modal-close" type="button" data-close-warplan-modal aria-label="Close War Plan editor" title="Close">
+        <svg class="button-svg" aria-hidden="true">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
     </div>
 
     <input type="hidden" name="plan_length" value="{{ my_activities|length }}">

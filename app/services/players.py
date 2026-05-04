@@ -73,10 +73,23 @@ def remove_player_from_party(
 
 def leave_party(db: Session, party: Party, player: Player) -> None:
     if party.leader_player_id == player.id:
-        raise ServiceError("Transfer leadership before leaving this Warparty.")
+        successor = next(
+            (
+                party_player
+                for party_player in party.players
+                if party_player.slot_number == 2 and party_player.id != player.id
+            ),
+            None,
+        )
+        if successor is None:
+            raise ServiceError(
+                "Slot 2 must be occupied before the leader can leave this Warparty."
+            )
+        party.leader_player_id = successor.id
 
     db.delete(player)
     db.commit()
+    db.refresh(party)
     db.expire(party, ["players"])
 
 

@@ -5,7 +5,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Cookie, Depends, Form, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -217,57 +217,62 @@ def party_room_live(
     )
 
 
-@router.post("/party/{party_id}/progress/complete")
+@router.post("/party/{party_id}/progress/complete", response_model=None)
 async def complete_progress_page(
+    request: Request,
     party_id: str,
     csrf_token: str = Form(""),
     session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
-) -> RedirectResponse:
+) -> Response:
     player = get_current_player(db, party_id, session_cookie)
     if player is None or not verify_csrf_token(session_cookie, party_id, csrf_token):
-        return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+        return _party_post_response(request, party_id, status.HTTP_403_FORBIDDEN)
     try:
         mark_current_complete(db, player)
     except ServiceError:
-        return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+        return _party_post_response(request, party_id, status.HTTP_400_BAD_REQUEST)
     await manager.broadcast(party_id, "progress_completed")
-    return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return _party_post_response(request, party_id)
 
 
-@router.post("/party/{party_id}/progress/undo")
+@router.post("/party/{party_id}/progress/undo", response_model=None)
 async def undo_progress_page(
+    request: Request,
     party_id: str,
     csrf_token: str = Form(""),
     session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
-) -> RedirectResponse:
+) -> Response:
     player = get_current_player(db, party_id, session_cookie)
-    if player is not None and verify_csrf_token(session_cookie, party_id, csrf_token):
-        try:
-            undo_last_progress(db, player)
-        except ServiceError:
-            pass
-        await manager.broadcast(party_id, "progress_undone")
-    return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+    if player is None or not verify_csrf_token(session_cookie, party_id, csrf_token):
+        return _party_post_response(request, party_id, status.HTTP_403_FORBIDDEN)
+    try:
+        undo_last_progress(db, player)
+    except ServiceError:
+        return _party_post_response(request, party_id, status.HTTP_400_BAD_REQUEST)
+    await manager.broadcast(party_id, "progress_undone")
+    return _party_post_response(request, party_id)
 
 
-@router.post("/party/{party_id}/progress/set")
+@router.post("/party/{party_id}/progress/set", response_model=None)
 async def set_progress_page(
+    request: Request,
     party_id: str,
     progress_index: int = Form(...),
     csrf_token: str = Form(""),
     session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
-) -> RedirectResponse:
+) -> Response:
     player = get_current_player(db, party_id, session_cookie)
-    if player is not None and verify_csrf_token(session_cookie, party_id, csrf_token):
-        try:
-            set_progress_index(db, player, progress_index)
-        except ServiceError:
-            pass
-        await manager.broadcast(party_id, "progress_set")
-    return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+    if player is None or not verify_csrf_token(session_cookie, party_id, csrf_token):
+        return _party_post_response(request, party_id, status.HTTP_403_FORBIDDEN)
+    try:
+        set_progress_index(db, player, progress_index)
+    except ServiceError:
+        return _party_post_response(request, party_id, status.HTTP_400_BAD_REQUEST)
+    await manager.broadcast(party_id, "progress_set")
+    return _party_post_response(request, party_id)
 
 
 @router.get("/party/{party_id}/my-warplan", response_class=HTMLResponse)
@@ -477,6 +482,14 @@ def _party_context(
         for player in party.players
         if is_party_leader and current_player is not None and player.id != current_player.id
     }
+    slot_two_player = next(
+        (player for player in party.players if player.slot_number == 2),
+        None,
+    )
+    can_current_player_leave = current_player is not None and (
+        not is_party_leader
+        or (slot_two_player is not None and slot_two_player.id != current_player.id)
+    )
     invite_text = invite_url(party)
     return {
         "request": request,
@@ -494,6 +507,7 @@ def _party_context(
         "route_instruction": _route_instruction,
         "get_activities": get_activities,
         "is_party_leader": is_party_leader,
+        "can_current_player_leave": can_current_player_leave,
         "stale_player_ids": stale_player_ids,
         "removable_player_ids": removable_player_ids,
         "removed_player_notice": removed_player_notice,
@@ -581,6 +595,16 @@ def _error_redirect(message: str) -> RedirectResponse:
     return RedirectResponse(
         f"/?{urlencode({'error': message})}", status_code=status.HTTP_303_SEE_OTHER
     )
+
+
+def _party_post_response(
+    request: Request,
+    party_id: str,
+    status_code: int = status.HTTP_204_NO_CONTENT,
+) -> Response:
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return Response(status_code=status_code)
+    return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 def _error_page(request: Request, message: str, status_code: int) -> HTMLResponse:

@@ -2,6 +2,7 @@
   id="party-live-region"
   data-party-live-region
   data-current-player-id="{{ current_player.id if current_player else '' }}"
+  data-can-current-player-leave="{{ 'true' if can_current_player_leave else 'false' }}"
 >
   {% if removed_player_notice %}
     <section class="panel notice-panel" data-removed-player-notice>
