@@ -128,9 +128,13 @@
   <article class="player-card player-card-empty">
     <span class="slot-label">Slot {{ slot_number }}</span>
     <h3 class="player-name">Open</h3>
-    <p class="open-slot-copy">Share the invite link or code.</p>
-    <div class="action-row">
-      <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
-    </div>
+    {% if current_player %}
+      <p class="open-slot-copy">Share the invite link or code.</p>
+      <div class="action-row">
+        <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
+      </div>
+    {% else %}
+      <p class="open-slot-copy">Ask a party member for an invite.</p>
+    {% endif %}
   </article>
 {% endif %}

@@ -14,4 +14,6 @@ async def party_updates(websocket: WebSocket, party_id: str) -> None:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        pass
+    finally:
         manager.disconnect(party_id, websocket)

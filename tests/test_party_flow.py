@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from app.security import csrf_token_from_cookie, encode_session_cookie, verify_csrf_token
@@ -13,6 +15,12 @@ from app.services.players import (
     transfer_party_leader,
 )
 from app.services.warplans import get_activities, save_warplan
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 
 def test_create_party_creates_slot_one_player_and_invite_code(db_session) -> None:
@@ -81,6 +89,32 @@ def test_get_current_player_rejects_other_party_cookie(db_session) -> None:
 
     assert get_current_player(db_session, party_one.id, cookie) == player_one
     assert get_current_player(db_session, party_two.id, cookie) is None
+
+
+def test_get_current_player_does_not_touch_recent_last_seen(db_session) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    recent_last_seen = datetime.now(UTC) - timedelta(seconds=30)
+    player.last_seen_at = recent_last_seen
+    db_session.commit()
+    cookie = encode_session_cookie(player.id, token)
+
+    current_player = get_current_player(db_session, party.id, cookie)
+
+    assert current_player == player
+    assert _as_utc(current_player.last_seen_at) == recent_last_seen
+
+
+def test_get_current_player_touches_stale_last_seen(db_session) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    stale_last_seen = datetime.now(UTC) - timedelta(minutes=5)
+    player.last_seen_at = stale_last_seen
+    db_session.commit()
+    cookie = encode_session_cookie(player.id, token)
+
+    current_player = get_current_player(db_session, party.id, cookie)
+
+    assert current_player == player
+    assert _as_utc(current_player.last_seen_at) > stale_last_seen
 
 
 def test_csrf_token_is_bound_to_session_and_party(db_session) -> None:

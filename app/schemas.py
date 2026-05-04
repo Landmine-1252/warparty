@@ -34,7 +34,7 @@ class PlayerResponse(BaseModel):
 
 class PartyResponse(BaseModel):
     id: str
-    invite_code: str
+    invite_code: str | None = None
     leader_player_id: int | None
     players: list[PlayerResponse]
 

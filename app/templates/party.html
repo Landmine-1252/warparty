@@ -1,69 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Warparty{% endblock %}
 {% block content %}
-<header class="page-header compact-page-header">
-  <div class="page-actions">
-    <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
-    <a class="button-secondary" href="/join/{{ party.invite_code }}">Open Invite</a>
-  </div>
-</header>
-
-{% if removed_player_notice %}
-  <section class="panel notice-panel">
-    <p class="empty-state">{{ removed_player_notice }}</p>
-    {% if open_slots > 0 %}
-      <div class="action-row">
-        <a class="button-primary" href="/join/{{ party.invite_code }}">Rejoin</a>
-      </div>
-    {% endif %}
-  </section>
-{% endif %}
-
-{% include "partials/next_action.html" %}
-
-<section class="panel">
-  <div class="panel-header">
-    <h2 class="panel-title">Player War Plans</h2>
-  </div>
-  <div class="player-grid">
-    {% for slot_player in slots %}
-      {% set slot_number = loop.index %}
-      {% include "partials/player_card.html" %}
-    {% endfor %}
-  </div>
-</section>
-
-<section class="panel">
-  <div class="panel-header">
-    <h2 class="panel-title">Recommended Party Route</h2>
-  </div>
-  {% include "partials/route_list.html" %}
-</section>
+{% include "partials/party_live.html" %}
 
 {% if current_player %}
-  {% include "partials/warplan_modal.html" %}
-  {% include "partials/clear_plan_modal.html" %}
-  {% if is_party_leader %}
-    {% if removable_player_ids %}
-      {% include "partials/remove_player_modal.html" %}
-    {% endif %}
+  <div data-party-modal-region>
+    {% include "partials/warplan_modal.html" %}
+    {% include "partials/clear_plan_modal.html" %}
+    {% include "partials/remove_player_modal.html" %}
     {% include "partials/transfer_leader_modal.html" %}
-  {% endif %}
-  {% if not is_party_leader %}
     {% include "partials/leave_party_modal.html" %}
-  {% endif %}
+  </div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 (() => {
-  const scrollKey = "warparty-scroll-{{ party.id }}";
-  const savedScroll = sessionStorage.getItem(scrollKey);
-  if (savedScroll !== null) {
-    sessionStorage.removeItem(scrollKey);
-    requestAnimationFrame(() => window.scrollTo(0, Number(savedScroll)));
-  }
+  const partyId = "{{ party.id }}";
+  const liveUrl = `/party/${partyId}/live`;
 
   function showToast(message) {
     let toast = document.querySelector("[data-toast]");
@@ -80,33 +35,79 @@
     toast.dataset.timerId = String(timerId);
   }
 
-  const copyButtons = document.querySelectorAll("[data-copy]");
-  copyButtons.forEach((button) => {
-    button.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(button.dataset.copy);
-        showToast("Invite copied");
-      } catch {
-        showToast("Copy failed");
+  function bindCopyButtons(root) {
+    root.querySelectorAll("[data-copy]").forEach((button) => {
+      if (button.dataset.copyBound) {
+        return;
       }
+      button.dataset.copyBound = "true";
+      button.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(button.dataset.copy);
+          showToast("Invite copied");
+        } catch {
+          showToast("Copy failed");
+        }
+      });
     });
-  });
+  }
+
+  function bindWarplanOpenButtons(root, modal) {
+    if (!modal) {
+      return;
+    }
+    root.querySelectorAll("[data-open-warplan-modal]").forEach((button) => {
+      if (button.dataset.warplanOpenBound) {
+        return;
+      }
+      button.dataset.warplanOpenBound = "true";
+      button.addEventListener("click", () => modal.showModal());
+    });
+  }
 
   const clearModal = document.querySelector("#clear-plan-modal");
   let pendingClearForm = null;
-  document.querySelectorAll("[data-confirm-clear]").forEach((form) => {
-    form.addEventListener("submit", (event) => {
-      if (clearModal) {
-        event.preventDefault();
-        pendingClearForm = form;
-        clearModal.showModal();
+  function confirmationModalIsOpen() {
+    return Boolean(document.querySelector(
+      "#clear-plan-modal[open], #remove-player-modal[open], #leave-party-modal[open], #transfer-leader-modal[open]"
+    ));
+  }
+
+  function refreshAfterConfirmationIfNeeded() {
+    if (pendingRefresh && !confirmationModalIsOpen()) {
+      pendingRefresh = false;
+      queuePartyRefresh();
+    }
+  }
+
+  function closeConfirmationModal(dialog, clearPending) {
+    clearPending();
+    dialog.close();
+    refreshAfterConfirmationIfNeeded();
+  }
+
+  function bindClearForms(root) {
+    root.querySelectorAll("[data-confirm-clear]").forEach((form) => {
+      if (form.dataset.confirmClearBound) {
+        return;
       }
+      form.dataset.confirmClearBound = "true";
+      form.addEventListener("submit", (event) => {
+        if (clearModal) {
+          event.preventDefault();
+          pendingClearForm = form;
+          clearModal.showModal();
+        }
+      });
     });
-  });
+  }
   if (clearModal) {
-    clearModal.querySelector("[data-cancel-clear]").addEventListener("click", () => {
-      pendingClearForm = null;
-      clearModal.close();
+    clearModal.querySelectorAll("[data-cancel-clear]").forEach((button) => {
+      button.addEventListener("click", () => {
+        closeConfirmationModal(clearModal, () => {
+          pendingClearForm = null;
+        });
+      });
     });
     clearModal.querySelector("[data-confirm-clear-submit]").addEventListener("click", () => {
       if (pendingClearForm) {
@@ -115,32 +116,40 @@
     });
     clearModal.addEventListener("click", (event) => {
       if (event.target === clearModal) {
-        pendingClearForm = null;
-        clearModal.close();
+        closeConfirmationModal(clearModal, () => {
+          pendingClearForm = null;
+        });
       }
     });
   }
 
   const removePlayerModal = document.querySelector("#remove-player-modal");
   let pendingRemovePlayerForm = null;
-  document.querySelectorAll("[data-confirm-remove-player]").forEach((form) => {
-    form.addEventListener("submit", (event) => {
-      if (removePlayerModal) {
-        event.preventDefault();
-        pendingRemovePlayerForm = form;
-        const nameTarget = removePlayerModal.querySelector("[data-remove-player-name]");
-        if (nameTarget) {
-          nameTarget.textContent = form.dataset.playerName || "This player";
-        }
-        removePlayerModal.showModal();
+  function bindRemovePlayerForms(root) {
+    root.querySelectorAll("[data-confirm-remove-player]").forEach((form) => {
+      if (form.dataset.confirmRemovePlayerBound) {
+        return;
       }
+      form.dataset.confirmRemovePlayerBound = "true";
+      form.addEventListener("submit", (event) => {
+        if (removePlayerModal) {
+          event.preventDefault();
+          pendingRemovePlayerForm = form;
+          const nameTarget = removePlayerModal.querySelector("[data-remove-player-name]");
+          if (nameTarget) {
+            nameTarget.textContent = form.dataset.playerName || "This player";
+          }
+          removePlayerModal.showModal();
+        }
+      });
     });
-  });
+  }
   if (removePlayerModal) {
     removePlayerModal.querySelectorAll("[data-cancel-remove-player]").forEach((button) => {
       button.addEventListener("click", () => {
-        pendingRemovePlayerForm = null;
-        removePlayerModal.close();
+        closeConfirmationModal(removePlayerModal, () => {
+          pendingRemovePlayerForm = null;
+        });
       });
     });
     removePlayerModal.querySelector("[data-confirm-remove-player-submit]").addEventListener("click", () => {
@@ -150,52 +159,79 @@
     });
     removePlayerModal.addEventListener("click", (event) => {
       if (event.target === removePlayerModal) {
-        pendingRemovePlayerForm = null;
-        removePlayerModal.close();
+        closeConfirmationModal(removePlayerModal, () => {
+          pendingRemovePlayerForm = null;
+        });
       }
     });
   }
 
   const leavePartyModal = document.querySelector("#leave-party-modal");
-  const leavePartyForm = document.querySelector("[data-confirm-leave-party]");
-  if (leavePartyModal && leavePartyForm) {
-    leavePartyForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      leavePartyModal.showModal();
+  let pendingLeavePartyForm = null;
+  function bindLeavePartyForms(root) {
+    root.querySelectorAll("[data-confirm-leave-party]").forEach((form) => {
+      if (form.dataset.confirmLeavePartyBound) {
+        return;
+      }
+      form.dataset.confirmLeavePartyBound = "true";
+      form.addEventListener("submit", (event) => {
+        if (leavePartyModal) {
+          event.preventDefault();
+          pendingLeavePartyForm = form;
+          leavePartyModal.showModal();
+        }
+      });
     });
+  }
+  if (leavePartyModal) {
     leavePartyModal.querySelectorAll("[data-cancel-leave-party]").forEach((button) => {
-      button.addEventListener("click", () => leavePartyModal.close());
+      button.addEventListener("click", () => {
+        closeConfirmationModal(leavePartyModal, () => {
+          pendingLeavePartyForm = null;
+        });
+      });
     });
     leavePartyModal.querySelector("[data-confirm-leave-party-submit]").addEventListener("click", () => {
-      leavePartyForm.submit();
+      if (pendingLeavePartyForm) {
+        pendingLeavePartyForm.submit();
+      }
     });
     leavePartyModal.addEventListener("click", (event) => {
       if (event.target === leavePartyModal) {
-        leavePartyModal.close();
+        closeConfirmationModal(leavePartyModal, () => {
+          pendingLeavePartyForm = null;
+        });
       }
     });
   }
 
   const transferLeaderModal = document.querySelector("#transfer-leader-modal");
   let pendingTransferLeaderForm = null;
-  document.querySelectorAll("[data-confirm-transfer-leader]").forEach((form) => {
-    form.addEventListener("submit", (event) => {
-      if (transferLeaderModal) {
-        event.preventDefault();
-        pendingTransferLeaderForm = form;
-        const nameTarget = transferLeaderModal.querySelector("[data-transfer-leader-name]");
-        if (nameTarget) {
-          nameTarget.textContent = form.dataset.playerName || "This player";
-        }
-        transferLeaderModal.showModal();
+  function bindTransferLeaderForms(root) {
+    root.querySelectorAll("[data-confirm-transfer-leader]").forEach((form) => {
+      if (form.dataset.confirmTransferLeaderBound) {
+        return;
       }
+      form.dataset.confirmTransferLeaderBound = "true";
+      form.addEventListener("submit", (event) => {
+        if (transferLeaderModal) {
+          event.preventDefault();
+          pendingTransferLeaderForm = form;
+          const nameTarget = transferLeaderModal.querySelector("[data-transfer-leader-name]");
+          if (nameTarget) {
+            nameTarget.textContent = form.dataset.playerName || "This player";
+          }
+          transferLeaderModal.showModal();
+        }
+      });
     });
-  });
+  }
   if (transferLeaderModal) {
     transferLeaderModal.querySelectorAll("[data-cancel-transfer-leader]").forEach((button) => {
       button.addEventListener("click", () => {
-        pendingTransferLeaderForm = null;
-        transferLeaderModal.close();
+        closeConfirmationModal(transferLeaderModal, () => {
+          pendingTransferLeaderForm = null;
+        });
       });
     });
     transferLeaderModal.querySelector("[data-confirm-transfer-leader-submit]").addEventListener("click", () => {
@@ -205,15 +241,15 @@
     });
     transferLeaderModal.addEventListener("click", (event) => {
       if (event.target === transferLeaderModal) {
-        pendingTransferLeaderForm = null;
-        transferLeaderModal.close();
+        closeConfirmationModal(transferLeaderModal, () => {
+          pendingTransferLeaderForm = null;
+        });
       }
     });
   }
 
   const modal = document.querySelector("#warplan-modal");
   if (modal) {
-    const openButtons = document.querySelectorAll("[data-open-warplan-modal]");
     const closeButtons = modal.querySelectorAll("[data-close-warplan-modal]");
     const choices = Array.from(modal.querySelectorAll("[data-activity-choice]"));
     const selectedList = modal.querySelector("[data-selected-path]");
@@ -293,7 +329,6 @@
         }
       });
     });
-    openButtons.forEach((button) => button.addEventListener("click", () => modal.showModal()));
     closeButtons.forEach((button) => button.addEventListener("click", () => modal.close()));
     modal.addEventListener("click", (event) => {
       if (event.target === modal) {
@@ -303,25 +338,105 @@
     renderSelected();
   }
 
-  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${scheme}://${window.location.host}/ws/party/{{ party.id }}`);
-  let reloadTimer = null;
-  ws.addEventListener("message", (event) => {
+  function bindPartyContent(root) {
+    bindCopyButtons(root);
+    bindClearForms(root);
+    bindRemovePlayerForms(root);
+    bindLeavePartyForms(root);
+    bindTransferLeaderForms(root);
+    bindWarplanOpenButtons(root, modal);
+  }
+
+  function closeOpenDialogs() {
+    document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
+  }
+
+  function removeModalRegion() {
+    const modalRegion = document.querySelector("[data-party-modal-region]");
+    if (modalRegion) {
+      modalRegion.remove();
+    }
+  }
+
+  function applyLiveHtml(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const nextLiveRegion = doc.querySelector("[data-party-live-region]");
+    const liveRegion = document.querySelector("[data-party-live-region]");
+    if (!nextLiveRegion || !liveRegion) {
+      throw new Error("Party update response was missing live content.");
+    }
+
+    const hadCurrentPlayer = Boolean(liveRegion.dataset.currentPlayerId);
+    const hasCurrentPlayer = Boolean(nextLiveRegion.dataset.currentPlayerId);
+    liveRegion.replaceWith(nextLiveRegion);
+    bindPartyContent(nextLiveRegion);
+
+    if (hadCurrentPlayer && !hasCurrentPlayer) {
+      closeOpenDialogs();
+      removeModalRegion();
+      showToast("Your party access changed.");
+    }
+  }
+
+  let refreshTimer = null;
+  let refreshInFlight = false;
+  let pendingRefresh = false;
+
+  async function refreshPartyLive() {
+    if (refreshInFlight) {
+      pendingRefresh = true;
+      return;
+    }
+    if (confirmationModalIsOpen()) {
+      pendingRefresh = true;
+      return;
+    }
+    refreshInFlight = true;
+
     try {
-      const payload = JSON.parse(event.data);
-      if (payload.type === "party_updated" && payload.party_id === "{{ party.id }}") {
-        window.clearTimeout(reloadTimer);
-        reloadTimer = window.setTimeout(() => {
-          sessionStorage.setItem(scrollKey, String(window.scrollY));
-          window.location.reload();
-        }, 350);
+      const response = await fetch(liveUrl, {
+        cache: "no-store",
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      });
+      if (!response.ok) {
+        throw new Error(`Party update failed with ${response.status}`);
       }
+      const html = await response.text();
+      if (confirmationModalIsOpen()) {
+        pendingRefresh = true;
+        return;
+      }
+      applyLiveHtml(html);
     } catch {
-      window.clearTimeout(reloadTimer);
-      reloadTimer = window.setTimeout(() => {
-        sessionStorage.setItem(scrollKey, String(window.scrollY));
-        window.location.reload();
-      }, 350);
+      showToast("Party update failed. Refresh when ready.");
+    } finally {
+      refreshInFlight = false;
+      if (pendingRefresh) {
+        pendingRefresh = false;
+        queuePartyRefresh();
+      }
+    }
+  }
+
+  function queuePartyRefresh() {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = window.setTimeout(refreshPartyLive, 350);
+  }
+
+  bindPartyContent(document);
+
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${scheme}://${window.location.host}/ws/party/${partyId}`);
+  ws.addEventListener("message", (event) => {
+    let payload = null;
+    try {
+      payload = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (payload.type === "party_updated" && payload.party_id === partyId) {
+      queuePartyRefresh();
     }
   });
 })();

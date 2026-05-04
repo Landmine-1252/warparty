@@ -15,6 +15,11 @@ class FakeWebSocket:
         self.messages.append(message)
 
 
+class BrokenWebSocket(FakeWebSocket):
+    async def send_json(self, message: dict[str, str]) -> None:
+        raise RuntimeError("socket is closed")
+
+
 async def test_broadcast_manager_registers_unregisters_and_broadcasts() -> None:
     manager = PartyConnectionManager()
     websocket = FakeWebSocket()
@@ -33,4 +38,14 @@ async def test_broadcast_manager_registers_unregisters_and_broadcasts() -> None:
     ]
 
     manager.disconnect("party-1", websocket)
+    assert manager.count("party-1") == 0
+
+
+async def test_broadcast_manager_removes_stale_connections() -> None:
+    manager = PartyConnectionManager()
+    websocket = BrokenWebSocket()
+
+    await manager.connect("party-1", websocket)
+    await manager.broadcast("party-1", "warplan_saved")
+
     assert manager.count("party-1") == 0

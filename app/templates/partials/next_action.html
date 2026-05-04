@@ -9,9 +9,9 @@
     <span class="status-pill {% if open_slots == 0 %}status-muted{% else %}warning{% endif %}">{{ open_slots }} open</span>
     <span class="status-pill">{{ route|length }} steps left</span>
   </div>
-  {% if next_action.state == "readonly" %}
+  {% if next_action.state == "readonly" and not removed_player_notice %}
     <div class="action-row">
-      <a class="button-primary" href="/join/{{ party.invite_code }}">{{ next_action.button }}</a>
+      <a class="button-primary" href="/">{{ next_action.button }}</a>
     </div>
   {% endif %}
 </section>

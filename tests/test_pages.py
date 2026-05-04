@@ -11,8 +11,11 @@ from app.routers.pages import (
     index,
     join_by_code,
     join_party_page,
+    my_warplan,
     party_room,
+    party_room_live,
     readyz,
+    save_my_warplan,
 )
 from app.security import REMEMBERED_PLAYER_NAME_COOKIE, encode_session_cookie
 from app.services.parties import create_party, join_party
@@ -84,9 +87,10 @@ def test_party_room_renders_open_slots(db_session) -> None:
     assert b"Party Room" not in response.body
     assert b"Slot 2" in response.body
     assert b"Open" in response.body
-    assert b"Copy Invite" in response.body
-    assert b"Join my Warparty" in response.body
-    assert party.invite_code.encode() in response.body
+    assert b"Ask a party member for an invite." in response.body
+    assert b"Copy Invite" not in response.body
+    assert b"Join my Warparty" not in response.body
+    assert party.invite_code.encode() not in response.body
 
 
 def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
@@ -112,6 +116,35 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"data-selected-count" in response.body
     assert b"Add War Plan" not in response.body
     assert b"window.confirm" not in response.body
+    assert b"window.location.reload" not in response.body
+    assert b"/live" in response.body
+
+
+def test_party_room_live_renders_refresh_fragment_without_modal(db_session) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    save_warplan(db_session, player, ["helltide", "pit"])
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}/live",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room_live(
+        request,
+        party.id,
+        encode_session_cookie(player.id, token),
+        db_session,
+    )
+
+    assert response.status_code == 200
+    assert b"data-party-live-region" in response.body
+    assert b"Player War Plans" in response.body
+    assert b'id="warplan-modal"' not in response.body
+    assert b"<script>" not in response.body
 
 
 def test_warplan_modal_uses_visual_picker_order(db_session) -> None:
@@ -163,7 +196,7 @@ def test_party_room_hides_leader_remove_when_party_not_full_and_player_not_stale
 
     assert response.status_code == 200
     assert b"Make Leader" in response.body
-    assert b'id="remove-player-modal"' not in response.body
+    assert b'id="remove-player-modal"' in response.body
     assert f"/players/{member.id}/remove".encode() not in response.body
 
 
@@ -255,7 +288,57 @@ def test_party_room_shows_removed_player_notice(db_session) -> None:
 
     assert response.status_code == 200
     assert b"Your previous slot was removed" in response.body
-    assert b"Rejoin" in response.body
+    assert b"Ask the party leader for a new invite" in response.body
+    assert f"/join/{party.invite_code}".encode() not in response.body
+
+
+def test_my_warplan_without_current_player_redirects_without_invite(db_session) -> None:
+    party, _, _ = create_party(db_session, "Cipher")
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}/my-warplan",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = my_warplan(request, party.id, None, db_session)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/party/{party.id}"
+    assert party.invite_code not in response.headers["location"]
+
+
+async def test_save_my_warplan_without_current_player_redirects_without_invite(
+    db_session,
+) -> None:
+    party, _, _ = create_party(db_session, "Cipher")
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": f"/party/{party.id}/my-warplan",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = await save_my_warplan(
+        request,
+        party.id,
+        plan_length=1,
+        progress_index=0,
+        csrf_token="",
+        activity_1="helltide",
+        session_cookie=None,
+        db=db_session,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/party/{party.id}"
+    assert party.invite_code not in response.headers["location"]
 
 
 def test_route_marks_current_step(db_session) -> None:

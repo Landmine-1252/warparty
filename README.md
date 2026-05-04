@@ -16,7 +16,7 @@ Warparty is not affiliated with Blizzard Entertainment.
 - Manually enter War Plans from the supported activity set.
 - Mark progress through your own selected activity level, or click completed levels to roll back your own progress.
 - Recalculate the recommended route from persisted player progress.
-- Push real-time party update events over WebSockets and reload connected rooms.
+- Push real-time party update events over WebSockets and refresh party panels in place.
 - Store data in SQLite with no Redis or external database requirement.
 
 Supported activities:

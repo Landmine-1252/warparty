@@ -31,11 +31,16 @@ router = APIRouter(prefix="/api", tags=["api"])
 
 
 @router.get("/parties/{party_id}", response_model=PartyResponse)
-def get_party_json(party_id: str, db: Session = Depends(get_db)) -> PartyResponse:
+def get_party_json(
+    party_id: str,
+    session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> PartyResponse:
     party = get_party(db, party_id)
     if party is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return party_response(party)
+    current_player = get_current_player(db, party_id, session_cookie)
+    return party_response(party, include_invite_code=current_player is not None)
 
 
 @router.get("/parties/{party_id}/route", response_model=list[RouteStepResponse])

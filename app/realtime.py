@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 
 
 class PartyConnectionManager:
@@ -31,7 +31,7 @@ class PartyConnectionManager:
         for websocket in list(self._connections.get(party_id, set())):
             try:
                 await websocket.send_json(message)
-            except RuntimeError:
+            except (RuntimeError, WebSocketDisconnect):
                 stale.append(websocket)
         for websocket in stale:
             self.disconnect(party_id, websocket)

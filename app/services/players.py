@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,8 @@ from app.models import Party, Player, utcnow
 from app.security import decode_session_cookie, verify_session_token
 from app.services.errors import ServiceError
 from app.services.parties import rotate_party_invite_code
+
+LAST_SEEN_WRITE_INTERVAL = timedelta(seconds=60)
 
 
 def get_player(db: Session, player_id: int) -> Player | None:
@@ -27,10 +31,20 @@ def get_current_player(
         return None
     if not verify_session_token(token, player.session_token_hash):
         return None
-    player.last_seen_at = utcnow()
-    db.commit()
-    db.refresh(player)
+    now = utcnow()
+    if _should_update_last_seen(player.last_seen_at, now):
+        player.last_seen_at = now
+        db.commit()
+        db.refresh(player)
     return player
+
+
+def _should_update_last_seen(last_seen_at: datetime | None, now: datetime) -> bool:
+    if last_seen_at is None:
+        return True
+    if last_seen_at.tzinfo is None:
+        last_seen_at = last_seen_at.replace(tzinfo=UTC)
+    return now - last_seen_at >= LAST_SEEN_WRITE_INTERVAL
 
 
 def remove_player_from_party(

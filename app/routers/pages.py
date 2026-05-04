@@ -173,6 +173,33 @@ def party_room(
     )
 
 
+@router.get("/party/{party_id}/live", response_class=HTMLResponse)
+def party_room_live(
+    request: Request,
+    party_id: str,
+    session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    party = get_party(db, party_id)
+    if party is None:
+        return _error_page(request, "Warparty not found.", status.HTTP_404_NOT_FOUND)
+    current_player = get_current_player(db, party_id, session_cookie)
+    route = recommended_route_for_party(party)
+    removed_player_notice = _removed_player_notice(db, party_id, current_player, session_cookie)
+    return templates.TemplateResponse(
+        request,
+        "partials/party_live.html",
+        _party_context(
+            request,
+            party,
+            current_player,
+            route,
+            session_cookie,
+            removed_player_notice,
+        ),
+    )
+
+
 @router.post("/party/{party_id}/progress/complete")
 async def complete_progress_page(
     party_id: str,
@@ -238,17 +265,7 @@ def my_warplan(
         return _error_page(request, "Warparty not found.", status.HTTP_404_NOT_FOUND)
     current_player = get_current_player(db, party_id, session_cookie)
     if current_player is None:
-        return templates.TemplateResponse(
-            request,
-            "join.html",
-            {
-                "invite_code": party.invite_code,
-                "party": party,
-                "party_full": party_is_full(party),
-                "error": "Join this Warparty before editing a War Plan.",
-                "remembered_player_name": _remembered_player_name(request),
-            },
-        )
+        return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
     activities = get_activities(current_player.warplan)
     return templates.TemplateResponse(
         request,
@@ -288,7 +305,7 @@ async def save_my_warplan(
         return _error_page(request, "Warparty not found.", status.HTTP_404_NOT_FOUND)
     current_player = get_current_player(db, party_id, session_cookie)
     if current_player is None:
-        return RedirectResponse(f"/join/{party.invite_code}", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
     if not verify_csrf_token(session_cookie, party_id, csrf_token):
         return _error_page(
             request,
@@ -593,7 +610,13 @@ def _removed_player_notice(
     player_id, _ = decoded
     player = get_player(db, player_id)
     if player is None:
-        return "Your previous slot was removed. Rejoin if a slot is open."
+        return (
+            "Your previous slot was removed. Ask the party leader for a new invite "
+            "if you should rejoin."
+        )
     if player.party_id == party_id:
-        return "Your previous session is no longer valid. Rejoin if a slot is open."
+        return (
+            "Your previous session is no longer valid. Ask the party leader for a new "
+            "invite if you should rejoin."
+        )
     return None

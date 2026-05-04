@@ -1,0 +1,41 @@
+<div
+  id="party-live-region"
+  data-party-live-region
+  data-current-player-id="{{ current_player.id if current_player else '' }}"
+>
+  <header class="page-header compact-page-header">
+    {% if current_player %}
+      <div class="page-actions">
+        <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
+        <a class="button-secondary" href="/join/{{ party.invite_code }}">Open Invite</a>
+      </div>
+    {% endif %}
+  </header>
+
+  {% if removed_player_notice %}
+    <section class="panel notice-panel" data-removed-player-notice>
+      <p class="empty-state">{{ removed_player_notice }}</p>
+    </section>
+  {% endif %}
+
+  {% include "partials/next_action.html" %}
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Player War Plans</h2>
+    </div>
+    <div class="player-grid">
+      {% for slot_player in slots %}
+        {% set slot_number = loop.index %}
+        {% include "partials/player_card.html" %}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Recommended Party Route</h2>
+    </div>
+    {% include "partials/route_list.html" %}
+  </section>
+</div>

@@ -115,7 +115,7 @@ The party room connects to `/ws/party/{party_id}`. Mutating route handlers broad
 }
 ```
 
-The browser reloads the page after a short debounce. This is intentionally simple and reliable for single-container deployments. Multi-container deployments need a shared pub/sub layer.
+The browser fetches `/party/{party_id}/live` after a short debounce and swaps only the live party panels. Modals stay mounted so another player's update does not close an in-progress War Plan edit. Multi-container deployments need a shared pub/sub layer.
 
 ## Docker
 

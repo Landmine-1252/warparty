@@ -6,10 +6,10 @@ from app.schemas import PartyResponse, PlayerResponse, RouteStepResponse
 from app.services.warplans import get_activities
 
 
-def party_response(party: Party) -> PartyResponse:
+def party_response(party: Party, *, include_invite_code: bool = True) -> PartyResponse:
     return PartyResponse(
         id=party.id,
-        invite_code=party.invite_code,
+        invite_code=party.invite_code if include_invite_code else None,
         leader_player_id=party.leader_player_id,
         players=[
             PlayerResponse(
