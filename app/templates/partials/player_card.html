@@ -20,8 +20,6 @@
           {% endif %}
           {% if activities and not (current_player and current_player.id == slot_player.id) %}
             <span class="status-pill success">Ready</span>
-          {% elif not activities %}
-            <span class="status-pill warning">No Plan</span>
           {% endif %}
         </div>
         {% if is_party_leader and slot_player.id in removable_player_ids %}

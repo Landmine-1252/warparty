@@ -119,6 +119,8 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"Choose Activities" in response.body
     assert b"Choose up to 5 activities in order." in response.body
     assert b"Create Plan" in response.body
+    assert b"No War Plan entered." in response.body
+    assert b"No Plan" not in response.body
     assert b"0/5 selected" in response.body
     assert b"data-selected-count" in response.body
     assert b"Copy Code" in response.body
