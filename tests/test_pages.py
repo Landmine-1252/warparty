@@ -288,7 +288,10 @@ def test_party_room_renders_leave_party_for_non_leader(db_session) -> None:
     assert b"Leave Party" in response.body
     assert b'id="leave-party-modal"' in response.body
     assert b'class="nav-leave-form"' in response.body
-    assert b'<button class="nav-link-button nav-link-danger" type="submit">Leave</button>' in response.body
+    assert (
+        b'<button class="nav-link-button nav-link-danger" type="submit">Leave</button>'
+        in response.body
+    )
 
 
 def test_party_room_shows_removed_player_notice(db_session) -> None:
