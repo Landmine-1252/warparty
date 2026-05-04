@@ -76,13 +76,15 @@ def leave_party(db: Session, party: Party, player: Player) -> None:
         successor = next(
             (
                 party_player
-                for party_player in party.players
-                if party_player.slot_number == 2 and party_player.id != player.id
+                for party_player in sorted(party.players, key=lambda item: item.slot_number)
+                if party_player.id != player.id
             ),
             None,
         )
         if successor is None:
-            raise ServiceError("Slot 2 must be occupied before the leader can leave this Warparty.")
+            db.delete(party)
+            db.commit()
+            return
         party.leader_player_id = successor.id
 
     db.delete(player)

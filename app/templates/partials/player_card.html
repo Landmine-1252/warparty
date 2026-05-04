@@ -1,7 +1,9 @@
 {% if slot_player %}
   {% set activities = get_activities(slot_player.warplan) %}
   {% set progress_index = slot_player.warplan.progress_index if slot_player.warplan else 0 %}
-  <article class="player-card {% if current_player and current_player.id == slot_player.id %}current-player{% endif %}">
+  {% set is_current_user_card = current_player and current_player.id == slot_player.id %}
+  {% set current_route_step = route[0] if route else None %}
+  <article class="player-card {% if is_current_user_card %}current-player{% endif %} {% if not activities %}player-card-no-plan{% endif %}">
     <div class="player-card-header">
       <div class="player-card-title">
         <span class="slot-label">Slot {{ slot_player.slot_number }}</span>
@@ -12,13 +14,13 @@
           {% if party.leader_player_id == slot_player.id %}
             <span class="status-pill success">Leader</span>
           {% endif %}
-          {% if current_player and current_player.id == slot_player.id %}
+          {% if is_current_user_card %}
             <span class="status-pill warning">You</span>
           {% endif %}
           {% if slot_player.id in stale_player_ids %}
-            <span class="status-pill status-muted">Stale</span>
+            <span class="status-pill status-muted">Away</span>
           {% endif %}
-          {% if activities and not (current_player and current_player.id == slot_player.id) %}
+          {% if activities and not is_current_user_card %}
             <span class="status-pill success">Ready</span>
           {% endif %}
         </div>
@@ -35,13 +37,6 @@
       </div>
     </div>
     {% if activities %}
-      <p class="player-summary-line">{{ progress_index }}/{{ activities|length }} complete <span aria-hidden="true">/</span>
-      {% if progress_index < activities|length %}
-        Next: {{ activity_name(activities[progress_index]) }}
-      {% else %}
-        Complete
-      {% endif %}
-      </p>
       <ol class="level-list">
         {% for level in range(1, 6) %}
           {% set activity_key = activities[level - 1] if activities|length >= level else None %}
@@ -51,9 +46,14 @@
               {% set item_class = "is-complete" %}
             {% elif level == progress_index + 1 %}
               {% set item_class = "is-current" %}
+            {% elif is_current_user_card %}
+              {% set item_class = "is-future" %}
+            {% endif %}
+            {% if is_current_user_card and current_route_step and level == progress_index + 1 and current_player.id in current_route_step.advancing_player_ids and activity_key == current_route_step.activity_key %}
+              {% set item_class = item_class ~ " is-recommended" %}
             {% endif %}
             <li class="level-list-entry">
-              {% if current_player and current_player.id == slot_player.id %}
+              {% if is_current_user_card %}
                 <form method="post" action="/party/{{ party.id }}/progress/set" data-progress-form>
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   {% if level <= progress_index %}
@@ -122,7 +122,12 @@
           {% if slot_player.warplan %}
             <form method="post" action="/party/{{ party.id }}/my-warplan/delete" data-confirm-clear>
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button class="button-danger" type="submit">Clear Plan</button>
+              <button class="button-danger button-small" type="submit">
+                <svg class="button-inline-icon" aria-hidden="true">
+                  <use href="#icon-trash"></use>
+                </svg>
+                Clear Plan
+              </button>
             </form>
           {% endif %}
         {% elif is_party_leader %}
@@ -150,12 +155,6 @@
             <use href="#icon-link"></use>
           </svg>
           Copy Invite
-        </button>
-        <button class="button-secondary button-small" type="button" data-copy="{{ party.invite_code }}" data-copy-label="Invite code copied" data-shortcut-copy-code>
-          <svg class="button-inline-icon" aria-hidden="true">
-            <use href="#icon-hash"></use>
-          </svg>
-          Copy Code
         </button>
       </div>
     {% else %}

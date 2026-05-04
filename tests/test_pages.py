@@ -20,7 +20,7 @@ from app.routers.pages import (
 from app.security import REMEMBERED_PLAYER_NAME_COOKIE, encode_session_cookie
 from app.services.invites import invite_url
 from app.services.parties import create_party, join_party
-from app.services.players import remove_player_from_party
+from app.services.players import leave_party, remove_player_from_party
 from app.services.warplans import save_warplan
 
 
@@ -119,18 +119,18 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"Choose Activities" in response.body
     assert b"Choose up to 5 activities in order." in response.body
     assert b"Create Plan" in response.body
+    assert b'<button class="nav-leave-button" type="submit">Leave</button>' in response.body
     assert b"No War Plan entered." in response.body
     assert b"No Plan" not in response.body
     assert b"0/5 selected" in response.body
     assert b"data-selected-count" in response.body
-    assert b"Copy Code" in response.body
-    assert f'data-copy="{party.invite_code}"'.encode() in response.body
+    assert b"Copy Code" not in response.body
+    assert f'data-copy="{party.invite_code}"'.encode() not in response.body
     assert b"data-shortcut-edit-plan" in response.body
     assert b"data-shortcut-copy-invite" in response.body
-    assert b"data-shortcut-copy-code" in response.body
+    assert b"data-shortcut-copy-code" not in response.body
     assert b'href="#icon-x"' in response.body
     assert b'href="#icon-link"' in response.body
-    assert b'href="#icon-hash"' in response.body
     assert b"Add War Plan" not in response.body
     assert b"Open Invite" not in response.body
     assert f'data-copy="{invite_url(party)}"'.encode() in response.body
@@ -267,7 +267,7 @@ def test_party_room_renders_leader_remove_when_player_is_stale(db_session) -> No
     response = party_room(request, party.id, encode_session_cookie(leader.id, token), db_session)
 
     assert response.status_code == 200
-    assert b"Stale" in response.body
+    assert b"Away" in response.body
     assert b"data-confirm-remove-player" in response.body
 
 
@@ -290,10 +290,33 @@ def test_party_room_renders_leave_party_for_non_leader(db_session) -> None:
     assert b"Leave Party" in response.body
     assert b'id="leave-party-modal"' in response.body
     assert b'class="nav-leave-form"' in response.body
-    assert (
-        b'<button class="nav-link-button nav-link-danger" type="submit">Leave</button>'
-        in response.body
+    assert b'<button class="nav-leave-button" type="submit">Leave</button>' in response.body
+
+
+def test_party_room_renders_leave_party_for_promoted_slot_two_leader(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, promoted_leader, token = join_party(db_session, party.invite_code, "Landmine")
+    join_party(db_session, party.invite_code, "Kaos")
+    leave_party(db_session, party, leader)
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
     )
+
+    response = party_room(
+        request,
+        party.id,
+        encode_session_cookie(promoted_leader.id, token),
+        db_session,
+    )
+
+    assert response.status_code == 200
+    assert b'<button class="nav-leave-button" type="submit">Leave</button>' in response.body
 
 
 def test_party_room_shows_removed_player_notice(db_session) -> None:
@@ -424,6 +447,7 @@ def test_route_marks_current_step(db_session) -> None:
     assert b"Current" in response.body
     assert b"/progress/complete" not in response.body
     assert b"Mark Helltide complete" in response.body
+    assert b'class="player-summary-line"' not in response.body
 
 
 def test_current_player_ready_badge_is_hidden_and_plan_levels_are_clickable(
@@ -452,6 +476,8 @@ def test_current_player_ready_badge_is_hidden_and_plan_levels_are_clickable(
     assert b"Complete through level 3: Lair Boss" in response.body
     assert b"data-shortcut-undo-progress" in response.body
     assert b"data-shortcut-mark-current" in response.body
+    assert b"is-future" in response.body
+    assert b"is-recommended" in response.body
     assert b"Undo Last" not in response.body
 
 

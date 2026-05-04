@@ -62,7 +62,7 @@
             {% if not (can_current_player_leave is defined and can_current_player_leave) %}hidden{% endif %}
           >
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button class="nav-link-button nav-link-danger" type="submit">Leave</button>
+            <button class="nav-leave-button" type="submit">Leave</button>
           </form>
         {% endif %}
       </div>

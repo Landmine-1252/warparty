@@ -6,7 +6,7 @@ import pytest
 
 from app.security import csrf_token_from_cookie, encode_session_cookie, verify_csrf_token
 from app.services.errors import ServiceError
-from app.services.parties import create_party, join_party
+from app.services.parties import create_party, get_party, join_party
 from app.services.players import (
     get_current_player,
     get_player,
@@ -172,11 +172,13 @@ def test_non_leader_can_leave_party_and_free_slot(db_session) -> None:
     assert new_player.slot_number == 2
 
 
-def test_solo_leader_cannot_leave_party(db_session) -> None:
+def test_solo_leader_can_leave_and_delete_empty_party(db_session) -> None:
     party, leader, _ = create_party(db_session, "Cipher")
 
-    with pytest.raises(ServiceError):
-        leave_party(db_session, party, leader)
+    leave_party(db_session, party, leader)
+
+    assert get_party(db_session, party.id) is None
+    assert get_player(db_session, leader.id) is None
 
 
 def test_leader_leave_promotes_slot_two_player(db_session) -> None:
@@ -188,6 +190,19 @@ def test_leader_leave_promotes_slot_two_player(db_session) -> None:
     assert get_player(db_session, leader.id) is None
     assert party.leader_player_id == slot_two_player.id
     assert get_player(db_session, slot_two_player.id) is not None
+
+
+def test_promoted_slot_two_leader_can_leave_when_another_member_remains(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, slot_two_player, _ = join_party(db_session, party.invite_code, "Landmine")
+    _, slot_three_player, _ = join_party(db_session, party.invite_code, "Kaos")
+    leave_party(db_session, party, leader)
+
+    leave_party(db_session, party, slot_two_player)
+
+    assert get_player(db_session, slot_two_player.id) is None
+    assert party.leader_player_id == slot_three_player.id
+    assert get_player(db_session, slot_three_player.id) is not None
 
 
 def test_leader_can_transfer_leadership(db_session) -> None:

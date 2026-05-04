@@ -482,14 +482,7 @@ def _party_context(
         for player in party.players
         if is_party_leader and current_player is not None and player.id != current_player.id
     }
-    slot_two_player = next(
-        (player for player in party.players if player.slot_number == 2),
-        None,
-    )
-    can_current_player_leave = current_player is not None and (
-        not is_party_leader
-        or (slot_two_player is not None and slot_two_player.id != current_player.id)
-    )
+    can_current_player_leave = current_player is not None
     invite_text = invite_url(party)
     return {
         "request": request,
