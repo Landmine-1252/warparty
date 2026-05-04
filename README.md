@@ -50,8 +50,6 @@ The Windows script uses `.venv-win` so it does not conflict with a Linux/WSL `.v
 ```bash
 uv venv --python 3.12
 uv sync --extra dev
-WARPARTY_DATA_DIR=./data \
-WARPARTY_DATABASE_PATH=./data/warparty.db \
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8080 --reload
 ```
 
@@ -81,7 +79,7 @@ Or use Compose:
 docker compose up --build
 ```
 
-The container listens on port `8080`, runs as non-root UID/GID `10001`, and stores mutable runtime data in `/data`.
+The container listens on port `8080` and stores mutable runtime data in `/data`. At startup it prepares `/data`, then runs the app as the mounted directory owner or the default app UID/GID `10001`.
 
 ## Podman
 
@@ -96,7 +94,7 @@ podman run --rm -p 8080:8080 \
   warparty
 ```
 
-For a rootless Podman bind mount on SELinux systems, use `:Z` and run as your host user:
+For a rootless Podman bind mount on SELinux systems, use `:Z`. If ownership changes are restricted, run as your host user:
 
 ```bash
 mkdir -p ./data
@@ -109,20 +107,19 @@ podman run --rm --userns keep-id --user "$(id -u):$(id -g)" \
 
 ### Bind Mounts
 
-Docker and Podman named volumes work without extra setup. If you use a host bind mount, the mounted directory must be writable by UID/GID `10001`, or you must run the container with a `--user` value that can write to that host directory.
+Docker and Podman named volumes work without extra setup. For host bind mounts, the entrypoint creates `/data` when possible, aligns ownership with the mounted directory, and then drops privileges before starting the app.
 
 Example bind mount:
 
 ```bash
 mkdir -p ./data
-chown -R 10001:10001 ./data
 docker run --rm -p 8080:8080 \
   -e WARPARTY_PUBLIC_BASE_URL=http://localhost:8080 \
   -v "$(pwd)/data:/data:rw" \
   ghcr.io/landmine-1252/warparty:latest
 ```
 
-`PUID` and `PGID` environment variables are not used by this image. Use Docker/Podman `--user`, or fix ownership on the mounted host directory.
+`PUID` and `PGID` environment variables are not used by this image. Use Docker/Podman `--user` only when your runtime does not allow the entrypoint to adjust bind mount ownership.
 
 ## Unraid
 
@@ -134,17 +131,10 @@ Recommended Unraid settings:
 - Host path: `/mnt/user/appdata/warparty`
 - Access mode: read/write
 - `WARPARTY_PUBLIC_BASE_URL`: your external URL, for example `https://warparty.example.com`
-- `WARPARTY_ALLOWED_HOSTS`: your public host plus local hosts, for example `warparty.example.com,localhost,127.0.0.1`
 
-Warparty accepts both `WARPARTY_PUBLIC_BASE_URL` and the older `.NET`-style `Warparty__PublicBaseUrl`, but the uppercase `WARPARTY_` name is preferred.
+Warparty accepts both `WARPARTY_PUBLIC_BASE_URL` and the older `.NET`-style `Warparty__PublicBaseUrl`, but the uppercase `WARPARTY_` name is preferred. Warparty generates a persistent secret in `/data/secret_key`.
 
-If startup logs say SQLite is unable to open the database file, the `/data` mount is not writable by the container. Fix it with one of these approaches:
-
-```bash
-chown -R 10001:10001 /mnt/user/appdata/warparty
-```
-
-Or run the container as Unraid's usual appdata owner by adding this to Extra Parameters:
+If Unraid still reports a `/data` permission error, the host path is not writable by the container runtime. Run the container as Unraid's usual appdata owner by adding this to Extra Parameters:
 
 ```text
 --user 99:100
@@ -157,13 +147,7 @@ If you use `--user 99:100`, make sure `/mnt/user/appdata/warparty` is writable b
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `WARPARTY_PUBLIC_BASE_URL` | `http://localhost:8080` | Used to build invite links. |
-| `WARPARTY_DATABASE_PATH` | `/data/warparty.db` in containers | SQLite database file path. |
-| `WARPARTY_DATA_DIR` | `/data` in containers | Runtime data directory for the database and generated secret. |
-| `WARPARTY_MAX_PLAYERS_PER_PARTY` | `4` | Maximum party slots. |
-| `WARPARTY_SECRET_KEY` | unset | Optional override. If unset, a persistent secret is created in `WARPARTY_SECRET_KEY_FILE`. |
-| `WARPARTY_SECRET_KEY_FILE` | `<data_dir>/secret_key` | File used for the generated persistent secret. |
 | `WARPARTY_COOKIE_SECURE` | true for HTTPS public URLs | Forces the session cookie `Secure` flag. |
-| `WARPARTY_ALLOWED_HOSTS` | public host, `localhost`, `127.0.0.1` | Comma-separated Host header allow-list. Use `*` only for trusted local testing. |
 | `WARPARTY_LOG_LEVEL` | `info` | Uvicorn/application log level. |
 | `WARPARTY_PORT` | `8080` | Container listen port. |
 | `WARPARTY_SQLITE_BUSY_TIMEOUT_MS` | `5000` | SQLite lock wait timeout. |
@@ -214,11 +198,12 @@ docker run ... -v /path/to/current/data:/data ...
 
 ## Troubleshooting
 
+- `Permission denied: '/data/secret_key'`: `/data` is not writable. On Unraid, mount an appdata path to `/data`; if needed, add Extra Parameters `--user 99:100`.
 - `unable to open database file`: `/data` is missing or not writable by the container user.
 - Data survives restart but disappears after update: the database was probably written to an internal container path. Mount a host path or named volume to `/data`.
 - `database is locked`: verify only one app container is using the SQLite file, keep the database on local storage, and increase `WARPARTY_SQLITE_BUSY_TIMEOUT_MS` if needed.
 - Login/session issues behind HTTPS: set `WARPARTY_PUBLIC_BASE_URL` to the `https://` URL and leave `WARPARTY_COOKIE_SECURE` enabled.
-- Reverse proxy issues: proxy WebSockets for `/ws/...`, preserve `Host`, and set `WARPARTY_ALLOWED_HOSTS` to the public host.
+- Reverse proxy issues: proxy WebSockets for `/ws/...` and preserve `Host`.
 
 ## Publishing
 

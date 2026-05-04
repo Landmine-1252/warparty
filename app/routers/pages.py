@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.constants import (
     ACTIVITY_PICKER_ACTIVITIES,
     MAX_PLAN_LENGTH,
+    MAX_PLAYERS_PER_PARTY,
     activity_icon_path,
     activity_name,
 )
@@ -442,12 +443,11 @@ def _party_context(
     removed_player_notice: str | None,
 ) -> dict[str, Any]:
     settings = get_settings()
-    max_players = settings.max_players_per_party
     occupied_slots = {player.slot_number for player in party.players}
-    open_slots = max_players - len(occupied_slots)
+    open_slots = MAX_PLAYERS_PER_PARTY - len(occupied_slots)
     slots = [
         next((player for player in party.players if player.slot_number == slot), None)
-        for slot in range(1, max_players + 1)
+        for slot in range(1, MAX_PLAYERS_PER_PARTY + 1)
     ]
     ready_players = [player for player in party.players if player.warplan is not None]
     is_party_leader = current_player is not None and party.leader_player_id == current_player.id

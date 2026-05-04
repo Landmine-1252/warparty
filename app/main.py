@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import get_settings
 from app.database import init_db
@@ -27,9 +26,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Warparty", lifespan=lifespan)
-settings = get_settings()
-if settings.allowed_hosts != ("*",):
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(pages.router)

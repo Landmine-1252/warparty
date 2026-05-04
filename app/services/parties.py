@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.config import get_settings
+from app.constants import MAX_PLAYERS_PER_PARTY
 from app.models import Party, Player
 from app.security import (
     generate_invite_code,
@@ -38,14 +38,15 @@ def join_party(
     db: Session,
     invite_code: str,
     player_name: str,
-    max_players: int | None = None,
 ) -> tuple[Party, Player, str]:
     party = get_party_by_invite_code(db, invite_code)
     if party is None:
         raise ServiceError("Invite code was not found.")
-    max_slots = max_players or get_settings().max_players_per_party
     occupied_slots = {player.slot_number for player in party.players}
-    open_slot = next((slot for slot in range(1, max_slots + 1) if slot not in occupied_slots), None)
+    open_slot = next(
+        (slot for slot in range(1, MAX_PLAYERS_PER_PARTY + 1) if slot not in occupied_slots),
+        None,
+    )
     if open_slot is None:
         raise ServiceError("This Warparty is full.")
 
@@ -79,9 +80,8 @@ def get_party_by_invite_code(db: Session, invite_code: str) -> Party | None:
     )
 
 
-def party_is_full(party: Party, max_players: int | None = None) -> bool:
-    max_slots = max_players or get_settings().max_players_per_party
-    return len(party.players) >= max_slots
+def party_is_full(party: Party) -> bool:
+    return len(party.players) >= MAX_PLAYERS_PER_PARTY
 
 
 def rotate_party_invite_code(db: Session, party: Party) -> str:

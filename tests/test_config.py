@@ -15,11 +15,8 @@ def clear_settings_cache():
 
 
 def test_missing_secret_key_creates_persistent_secret_file(monkeypatch, tmp_path) -> None:
-    data_dir = tmp_path / "data"
-    monkeypatch.delenv("WARPARTY_SECRET_KEY", raising=False)
-    monkeypatch.setenv("WARPARTY_ENV", "production")
-    monkeypatch.setenv("WARPARTY_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("WARPARTY_DATABASE_PATH", str(data_dir / "warparty.db"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WARPARTY_ENV", "test")
     monkeypatch.setenv("WARPARTY_PUBLIC_BASE_URL", "https://warparty.example.test")
 
     settings = get_settings()
@@ -29,10 +26,10 @@ def test_missing_secret_key_creates_persistent_secret_file(monkeypatch, tmp_path
     settings = get_settings()
 
     assert settings.secret_key == first_secret
-    assert settings.secret_key_file == data_dir / "secret_key"
-    assert settings.secret_key_file.exists()
+    assert settings.data_dir == tmp_path / "data"
+    assert settings.database_path == tmp_path / "data" / "warparty.db"
+    assert (tmp_path / "data" / "secret_key").exists()
     assert settings.cookie_secure is True
-    assert settings.allowed_hosts == ("warparty.example.test", "localhost", "127.0.0.1")
 
 
 def test_missing_secret_key_reuses_existing_secret_file(monkeypatch, tmp_path) -> None:
@@ -40,16 +37,14 @@ def test_missing_secret_key_reuses_existing_secret_file(monkeypatch, tmp_path) -
     data_dir.mkdir()
     current_secret = "current-secret-key-value"
     (data_dir / "secret_key").write_text(f"{current_secret}\n", encoding="utf-8")
-    monkeypatch.delenv("WARPARTY_SECRET_KEY", raising=False)
-    monkeypatch.setenv("WARPARTY_ENV", "production")
-    monkeypatch.setenv("WARPARTY_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("WARPARTY_DATABASE_PATH", str(data_dir / "warparty.db"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WARPARTY_ENV", "test")
     monkeypatch.setenv("WARPARTY_PUBLIC_BASE_URL", "https://warparty.example.test")
 
     settings = get_settings()
 
     assert settings.secret_key == current_secret
-    assert settings.secret_key_file.read_text(encoding="utf-8").strip() == current_secret
+    assert (tmp_path / "data" / "secret_key").read_text(encoding="utf-8").strip() == current_secret
 
 
 def test_invalid_public_base_url_fails_clearly(monkeypatch) -> None:
@@ -60,9 +55,9 @@ def test_invalid_public_base_url_fails_clearly(monkeypatch) -> None:
 
 
 def test_invalid_integer_env_fails_clearly(monkeypatch) -> None:
-    monkeypatch.setenv("WARPARTY_MAX_PLAYERS_PER_PARTY", "many")
+    monkeypatch.setenv("WARPARTY_PORT", "many")
 
-    with pytest.raises(RuntimeError, match="WARPARTY_MAX_PLAYERS_PER_PARTY"):
+    with pytest.raises(RuntimeError, match="WARPARTY_PORT"):
         get_settings()
 
 
@@ -70,23 +65,17 @@ def test_dotnet_style_public_base_url_is_supported_for_existing_unraid_templates
     monkeypatch,
     tmp_path,
 ) -> None:
-    data_dir = tmp_path / "data"
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("WARPARTY_PUBLIC_BASE_URL", raising=False)
-    monkeypatch.delenv("WARPARTY_SECRET_KEY", raising=False)
-    monkeypatch.setenv("WARPARTY_ENV", "production")
-    monkeypatch.setenv("WARPARTY_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("WARPARTY_DATABASE_PATH", str(data_dir / "warparty.db"))
+    monkeypatch.setenv("WARPARTY_ENV", "test")
     monkeypatch.setenv("Warparty__PublicBaseUrl", "https://warparty.example.test")
 
     assert get_settings().public_base_url == "https://warparty.example.test"
 
 
 def test_https_public_url_sets_secure_session_cookie(monkeypatch, tmp_path) -> None:
-    data_dir = tmp_path / "data"
-    monkeypatch.delenv("WARPARTY_SECRET_KEY", raising=False)
-    monkeypatch.setenv("WARPARTY_ENV", "production")
-    monkeypatch.setenv("WARPARTY_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("WARPARTY_DATABASE_PATH", str(data_dir / "warparty.db"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WARPARTY_ENV", "test")
     monkeypatch.setenv("WARPARTY_PUBLIC_BASE_URL", "https://warparty.example.test")
     response = Response()
 

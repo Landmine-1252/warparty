@@ -14,9 +14,6 @@ uv sync --extra dev
 if errorlevel 1 exit /b %errorlevel%
 
 if not defined WARPARTY_PUBLIC_BASE_URL set WARPARTY_PUBLIC_BASE_URL=http://localhost:8080
-if not defined WARPARTY_DATA_DIR set WARPARTY_DATA_DIR=.\data
-if not defined WARPARTY_DATABASE_PATH set WARPARTY_DATABASE_PATH=.\data\warparty.db
-if not defined WARPARTY_SECRET_KEY set WARPARTY_SECRET_KEY=local-dev-secret
 if not defined WARPARTY_PORT set WARPARTY_PORT=8080
 
 echo Starting Warparty dev server at http://localhost:%WARPARTY_PORT%

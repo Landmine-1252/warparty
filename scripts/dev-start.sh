@@ -16,9 +16,6 @@ fi
 uv sync --extra dev
 
 export WARPARTY_PUBLIC_BASE_URL="${WARPARTY_PUBLIC_BASE_URL:-http://localhost:8080}"
-export WARPARTY_DATA_DIR="${WARPARTY_DATA_DIR:-./data}"
-export WARPARTY_DATABASE_PATH="${WARPARTY_DATABASE_PATH:-./data/warparty.db}"
-export WARPARTY_SECRET_KEY="${WARPARTY_SECRET_KEY:-local-dev-secret}"
 export WARPARTY_PORT="${WARPARTY_PORT:-8080}"
 
 echo "Starting Warparty dev server at http://localhost:${WARPARTY_PORT}"

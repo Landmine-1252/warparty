@@ -44,10 +44,12 @@ def test_join_fills_next_open_slot(db_session) -> None:
 
 def test_full_party_rejects_new_player(db_session) -> None:
     party, _, _ = create_party(db_session, "One")
-    join_party(db_session, party.invite_code, "Two", max_players=2)
+    join_party(db_session, party.invite_code, "Two")
+    join_party(db_session, party.invite_code, "Three")
+    join_party(db_session, party.invite_code, "Four")
 
     with pytest.raises(ServiceError):
-        join_party(db_session, party.invite_code, "Three", max_players=2)
+        join_party(db_session, party.invite_code, "Five")
 
 
 def test_current_player_can_save_own_warplan(db_session) -> None:

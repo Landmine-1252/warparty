@@ -138,7 +138,7 @@ Compose:
 docker compose up --build
 ```
 
-The app listens on port `8080` and persists SQLite data in `/data`. The image runs as non-root UID/GID `10001`. Docker/Podman named volumes work without extra setup; host bind mounts must be writable by UID/GID `10001` or by whichever user is supplied through `docker run --user` / `podman run --user`.
+The app listens on port `8080` and persists SQLite data in `/data`. The image starts with a small entrypoint that prepares `/data`, then drops privileges to the mounted directory owner or the default app UID/GID `10001` before starting uvicorn. Docker/Podman named volumes work without extra setup; host bind mounts usually work without manual `chown`.
 
 The Dockerfile uses `uv.lock` through a builder stage and copies only the virtual environment and application source into the runtime stage. Runtime logs go to stdout/stderr through uvicorn.
 
@@ -152,7 +152,7 @@ podman run --rm --userns keep-id --user "$(id -u):$(id -g)" \
   warparty
 ```
 
-Unraid users should mount `/mnt/user/appdata/warparty` to `/data`. `PUID`/`PGID` environment variables are not consumed; use directory ownership or Docker `--user`.
+Unraid users should mount `/mnt/user/appdata/warparty` to `/data`. `PUID`/`PGID` environment variables are not consumed; use Docker `--user 99:100` only if the runtime blocks entrypoint ownership changes.
 
 ## Container Publishing
 
@@ -171,4 +171,4 @@ If publishing fails with `permission_denied: write_package`, open the package se
 - No Alembic migrations yet; first version uses `Base.metadata.create_all`.
 - WebSocket updates are in-process and single-container only.
 - Session cookies store `player_id:token`; only the token hash is persisted in SQLite.
-- `WARPARTY_SECRET_KEY` is optional. If unset, a persistent secret is generated in the data directory.
+- A persistent app secret is generated automatically in the data directory.

@@ -22,8 +22,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:${PATH}" \
     WARPARTY_ENV=production \
-    WARPARTY_DATA_DIR=/data \
-    WARPARTY_DATABASE_PATH=/data/warparty.db \
     WARPARTY_PORT=8080 \
     WARPARTY_LOG_LEVEL=info \
     WARPARTY_FORWARDED_ALLOW_IPS=*
@@ -35,13 +33,14 @@ RUN groupadd --gid "${WARPARTY_GID}" warparty \
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app /app/app
+COPY scripts/docker_entrypoint.py /app/scripts/docker_entrypoint.py
 
 RUN mkdir -p /data && chown -R warparty:warparty /app /data
 
-USER warparty
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"WARPARTY_PORT\", \"8080\")}/healthz', timeout=3).read()"
 
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port \"${WARPARTY_PORT:-8080}\" --proxy-headers --forwarded-allow-ips \"${WARPARTY_FORWARDED_ALLOW_IPS:-*}\" --log-level \"${WARPARTY_LOG_LEVEL:-info}\""]
+ENTRYPOINT ["python", "/app/scripts/docker_entrypoint.py"]
+CMD ["serve"]

@@ -34,6 +34,7 @@ ACTIVITY_PICKER_ACTIVITIES: tuple[Activity, ...] = tuple(
 )
 MAX_PLAN_LENGTH = 5
 MIN_PLAN_LENGTH = 1
+MAX_PLAYERS_PER_PARTY = 4
 
 
 def activity_name(activity_key: str) -> str:

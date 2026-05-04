@@ -54,7 +54,7 @@ def _ensure_writable_directory(path: Path) -> None:
         raise RuntimeError(
             "Warparty cannot write to its runtime data directory "
             f"'{path}'. Check the Docker/Podman volume mount permissions, "
-            "or set WARPARTY_DATA_DIR and WARPARTY_DATABASE_PATH to a writable path."
+            "or mount a writable host directory to /data."
         ) from exc
 
 
@@ -66,7 +66,7 @@ def _ensure_writable_database_file(path: Path) -> None:
         raise RuntimeError(
             "Warparty cannot write to its SQLite database file "
             f"'{path}'. Check ownership and permissions for the mounted "
-            "Docker/Podman volume, or set WARPARTY_DATABASE_PATH to a writable file."
+            "Docker/Podman /data volume."
         ) from exc
 
 
