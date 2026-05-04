@@ -42,7 +42,7 @@ On Windows:
 scripts\dev-start.bat
 ```
 
-The app runs at <http://localhost:8080>. Local data is stored in `App_Data/warparty.db`.
+The app runs at <http://localhost:8080>. Local data is stored in `data/warparty.db`.
 The Windows script uses `.venv-win` so it does not conflict with a Linux/WSL `.venv`. The start scripts keep uvicorn attached to the current terminal so you can see live logs. Press `Ctrl+C` to stop.
 
 ## Manual Local Commands
@@ -50,8 +50,8 @@ The Windows script uses `.venv-win` so it does not conflict with a Linux/WSL `.v
 ```bash
 uv venv --python 3.12
 uv sync --extra dev
-WARPARTY_DATA_DIR=./App_Data \
-WARPARTY_DATABASE_PATH=./App_Data/warparty.db \
+WARPARTY_DATA_DIR=./data \
+WARPARTY_DATABASE_PATH=./data/warparty.db \
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8080 --reload
 ```
 
@@ -169,8 +169,6 @@ If you use `--user 99:100`, make sure `/mnt/user/appdata/warparty` is writable b
 | `WARPARTY_SQLITE_BUSY_TIMEOUT_MS` | `5000` | SQLite lock wait timeout. |
 | `WARPARTY_SQLITE_WAL` | `true` | Enables SQLite WAL mode. |
 | `WARPARTY_STALE_PLAYER_MINUTES` | `60` | Age after which leader controls treat a player as stale. |
-| `WARPARTY_AUTO_MIGRATE_LEGACY_DATA` | `true` | Copies old `/app/App_Data` database and secret files into the configured data path if the new files are missing. |
-| `WARPARTY_LEGACY_DATA_DIR` | `/app/App_Data` | Legacy data path checked during one-time upgrade adoption. |
 | `WARPARTY_ENV` | `development` | Set to `production` for container deployments. |
 
 ## Healthcheck
@@ -205,11 +203,7 @@ Stop the container, replace `warparty.db` and `secret_key` in the mounted data d
 
 ### Upgrade
 
-Pull the new image, stop the old container, back up `/data`, then start the new container with the same volume. This first version uses SQLAlchemy `create_all`; future schema migrations should be handled before more complex releases.
-
-Older Warparty images used `/app/App_Data`. Current images use `/data`. On startup, Warparty checks `/app/App_Data` and copies `warparty.db`, `warparty.db-wal`, `warparty.db-shm`, and `secret_key` into the configured data path only when the target files do not already exist. This is enabled by `WARPARTY_AUTO_MIGRATE_LEGACY_DATA=true` and never overwrites an existing database.
-
-That compatibility copy only works if the old data is still visible inside the container. The safest upgrade path is still:
+Pull the new image, stop the old container, back up the mounted `/data` directory, then start the new container with the same `/data` volume. This first version uses SQLAlchemy `create_all`; future schema migrations should be handled before more complex releases.
 
 ```bash
 docker stop warparty
@@ -218,17 +212,10 @@ docker pull ghcr.io/landmine-1252/warparty:latest
 docker run ... -v /path/to/current/data:/data ...
 ```
 
-If your existing host mount points at old data, either move/copy the host directory contents to the new `/data` mount location, or keep using the old path explicitly:
-
-```bash
--v /path/to/old-data:/app/App_Data \
--e WARPARTY_DATA_DIR=/app/App_Data \
--e WARPARTY_DATABASE_PATH=/app/App_Data/warparty.db
-```
-
 ## Troubleshooting
 
 - `unable to open database file`: `/data` is missing or not writable by the container user.
+- Data survives restart but disappears after update: the database was probably written to an internal container path. Mount a host path or named volume to `/data`.
 - `database is locked`: verify only one app container is using the SQLite file, keep the database on local storage, and increase `WARPARTY_SQLITE_BUSY_TIMEOUT_MS` if needed.
 - Login/session issues behind HTTPS: set `WARPARTY_PUBLIC_BASE_URL` to the `https://` URL and leave `WARPARTY_COOKIE_SECURE` enabled.
 - Reverse proxy issues: proxy WebSockets for `/ws/...`, preserve `Host`, and set `WARPARTY_ALLOWED_HOSTS` to the public host.

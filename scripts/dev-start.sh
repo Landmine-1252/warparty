@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-mkdir -p App_Data
+mkdir -p data
 if [[ ! -x .venv/bin/python ]]; then
   if [[ -e .venv ]]; then
     echo "Found .venv, but it does not look like a Linux Python virtual environment."
@@ -16,8 +16,8 @@ fi
 uv sync --extra dev
 
 export WARPARTY_PUBLIC_BASE_URL="${WARPARTY_PUBLIC_BASE_URL:-http://localhost:8080}"
-export WARPARTY_DATA_DIR="${WARPARTY_DATA_DIR:-./App_Data}"
-export WARPARTY_DATABASE_PATH="${WARPARTY_DATABASE_PATH:-./App_Data/warparty.db}"
+export WARPARTY_DATA_DIR="${WARPARTY_DATA_DIR:-./data}"
+export WARPARTY_DATABASE_PATH="${WARPARTY_DATABASE_PATH:-./data/warparty.db}"
 export WARPARTY_SECRET_KEY="${WARPARTY_SECRET_KEY:-local-dev-secret}"
 export WARPARTY_PORT="${WARPARTY_PORT:-8080}"
 

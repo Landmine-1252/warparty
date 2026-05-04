@@ -10,7 +10,6 @@ __pycache__
 *.db-*
 *.sqlite
 *.sqlite3
-App_Data
 data
 .env
 .env.*

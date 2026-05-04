@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import secrets
-import shutil
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -27,8 +26,6 @@ class Settings:
     sqlite_busy_timeout_ms: int
     sqlite_wal: bool
     stale_player_minutes: int
-    auto_migrate_legacy_data: bool
-    legacy_data_dir: Path
 
 
 def _raw_env(name: str, default: str | None = None) -> str | None:
@@ -130,21 +127,6 @@ def _load_or_create_secret_key(secret_key_file: Path) -> str:
     return secret_key
 
 
-def copy_file_if_target_missing(source: Path, target: Path) -> bool:
-    if source == target or target.exists() or not source.exists():
-        return False
-    try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-    except OSError as exc:
-        raise RuntimeError(
-            f"Warparty found legacy data at '{source}', but could not copy it "
-            f"to '{target}'. Fix data directory permissions or set "
-            "WARPARTY_AUTO_MIGRATE_LEGACY_DATA=false."
-        ) from exc
-    return True
-
-
 @lru_cache
 def get_settings() -> Settings:
     environment = _raw_env("WARPARTY_ENV", "development")
@@ -153,8 +135,8 @@ def get_settings() -> Settings:
     if environment not in {"development", "production", "prod", "test"}:
         raise RuntimeError("WARPARTY_ENV must be development, production, prod, or test.")
 
-    default_data_dir = "./App_Data" if environment in {"development", "test"} else "/data"
-    data_dir = Path(_raw_env("WARPARTY_DATA_DIR", default_data_dir) or default_data_dir)
+    default_data_dir = Path("./data") if environment in {"development", "test"} else Path("/data")
+    data_dir = Path(_raw_env("WARPARTY_DATA_DIR", str(default_data_dir)) or str(default_data_dir))
     database_path = Path(
         _raw_env("WARPARTY_DATABASE_PATH", str(data_dir / "warparty.db"))
         or str(data_dir / "warparty.db")
@@ -163,13 +145,9 @@ def get_settings() -> Settings:
         _raw_env("WARPARTY_SECRET_KEY_FILE", str(data_dir / "secret_key"))
         or str(data_dir / "secret_key")
     )
-    legacy_data_dir = Path(_raw_env("WARPARTY_LEGACY_DATA_DIR", "/app/App_Data") or "/app/App_Data")
-    auto_migrate_legacy_data = _bool_env("WARPARTY_AUTO_MIGRATE_LEGACY_DATA", True)
     public_base_url = _public_base_url()
     secret_key = os.getenv("WARPARTY_SECRET_KEY")
     if not secret_key:
-        if auto_migrate_legacy_data:
-            copy_file_if_target_missing(legacy_data_dir / "secret_key", secret_key_file)
         secret_key = _load_or_create_secret_key(secret_key_file)
     if environment in {"production", "prod"} and len(secret_key) < 16:
         raise RuntimeError("WARPARTY_SECRET_KEY must be at least 16 characters in production.")
@@ -193,6 +171,4 @@ def get_settings() -> Settings:
         sqlite_busy_timeout_ms=_int_env("WARPARTY_SQLITE_BUSY_TIMEOUT_MS", 5000, min_value=100),
         sqlite_wal=_bool_env("WARPARTY_SQLITE_WAL", True),
         stale_player_minutes=_int_env("WARPARTY_STALE_PLAYER_MINUTES", 60, min_value=1),
-        auto_migrate_legacy_data=auto_migrate_legacy_data,
-        legacy_data_dir=legacy_data_dir,
     )

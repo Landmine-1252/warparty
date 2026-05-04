@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from app.config import copy_file_if_target_missing, get_settings
+from app.config import get_settings
 
 
 class Base(DeclarativeBase):
@@ -70,36 +70,11 @@ def _ensure_writable_database_file(path: Path) -> None:
         ) from exc
 
 
-def migrate_legacy_database_if_needed(
-    *,
-    database_path: Path,
-    legacy_database_path: Path,
-    enabled: bool,
-) -> bool:
-    if not enabled:
-        return False
-    copied = copy_file_if_target_missing(legacy_database_path, database_path)
-    if not copied:
-        return False
-
-    for suffix in ("-wal", "-shm"):
-        copy_file_if_target_missing(
-            Path(f"{legacy_database_path}{suffix}"),
-            Path(f"{database_path}{suffix}"),
-        )
-    return True
-
-
 def init_db() -> None:
     import app.models  # noqa: F401
 
     _ensure_writable_directory(settings.data_dir)
     _ensure_writable_directory(settings.database_path.parent)
-    migrate_legacy_database_if_needed(
-        database_path=settings.database_path,
-        legacy_database_path=settings.legacy_data_dir / "warparty.db",
-        enabled=settings.auto_migrate_legacy_data,
-    )
     _ensure_writable_database_file(settings.database_path)
     Base.metadata.create_all(bind=engine)
 
