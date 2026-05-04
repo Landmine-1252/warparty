@@ -459,12 +459,9 @@ def _party_context(
     removable_player_ids = {
         player.id
         for player in party.players
-        if is_party_leader
-        and current_player is not None
-        and player.id != current_player.id
-        and (open_slots == 0 or player.id in stale_player_ids)
+        if is_party_leader and current_player is not None and player.id != current_player.id
     }
-    invite_text = f"Join my Warparty: {invite_url(party)}\nInvite code: {party.invite_code}"
+    invite_text = invite_url(party)
     return {
         "request": request,
         "party": party,

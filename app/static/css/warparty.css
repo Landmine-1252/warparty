@@ -43,9 +43,21 @@ a {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   color: var(--gold);
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 2px 2px rgb(0 0 0 / 82%))
+    drop-shadow(0 0 10px rgb(215 175 88 / 28%));
 }
 
 .nav-actions {
@@ -282,9 +294,20 @@ input:disabled {
 .player-meta {
   display: flex;
   gap: 6px;
+  align-items: start;
+  justify-content: end;
+}
+
+.player-badges {
+  display: flex;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
   justify-content: end;
+}
+
+.remove-player-icon-form {
+  flex: 0 0 auto;
 }
 
 .player-name {
@@ -584,6 +607,17 @@ input:disabled {
   background: #27231f;
   color: var(--text);
   font-weight: 800;
+}
+
+.icon-button-danger {
+  border-color: rgb(168 50 50 / 76%);
+  background: rgb(121 38 38 / 82%);
+  color: #ffd9d6;
+}
+
+.icon-button-danger:hover {
+  border-color: #d05b55;
+  background: var(--red);
 }
 
 .compact-warplan-builder {

@@ -8,20 +8,28 @@
         <h3 class="player-name">{{ slot_player.display_name }}</h3>
       </div>
       <div class="player-meta">
-        {% if party.leader_player_id == slot_player.id %}
-          <span class="status-pill success">Leader</span>
+        {% if is_party_leader and slot_player.id in removable_player_ids %}
+          <form class="remove-player-icon-form" method="post" action="/party/{{ party.id }}/players/{{ slot_player.id }}/remove" data-confirm-remove-player data-player-name="{{ slot_player.display_name }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="icon-button icon-button-danger" type="submit" aria-label="Remove {{ slot_player.display_name }}" title="Remove player">x</button>
+          </form>
         {% endif %}
-        {% if current_player and current_player.id == slot_player.id %}
-          <span class="status-pill warning">You</span>
-        {% endif %}
-        {% if slot_player.id in stale_player_ids %}
-          <span class="status-pill status-muted">Stale</span>
-        {% endif %}
-        {% if activities %}
-          <span class="status-pill success">Ready</span>
-        {% else %}
-          <span class="status-pill warning">No Plan</span>
-        {% endif %}
+        <div class="player-badges">
+          {% if party.leader_player_id == slot_player.id %}
+            <span class="status-pill success">Leader</span>
+          {% endif %}
+          {% if current_player and current_player.id == slot_player.id %}
+            <span class="status-pill warning">You</span>
+          {% endif %}
+          {% if slot_player.id in stale_player_ids %}
+            <span class="status-pill status-muted">Stale</span>
+          {% endif %}
+          {% if activities %}
+            <span class="status-pill success">Ready</span>
+          {% else %}
+            <span class="status-pill warning">No Plan</span>
+          {% endif %}
+        </div>
       </div>
     </div>
     {% if activities %}
@@ -114,12 +122,6 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="button-secondary" type="submit">Make Leader</button>
           </form>
-          {% if slot_player.id in removable_player_ids %}
-            <form method="post" action="/party/{{ party.id }}/players/{{ slot_player.id }}/remove" data-confirm-remove-player data-player-name="{{ slot_player.display_name }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button class="button-danger" type="submit">Remove</button>
-            </form>
-          {% endif %}
         {% endif %}
       </div>
     {% endif %}
@@ -129,7 +131,7 @@
     <span class="slot-label">Slot {{ slot_number }}</span>
     <h3 class="player-name">Open</h3>
     {% if current_player %}
-      <p class="open-slot-copy">Share the invite link or code.</p>
+      <p class="open-slot-copy">Share the invite link.</p>
       <div class="action-row">
         <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
       </div>

@@ -18,6 +18,7 @@ from app.routers.pages import (
     save_my_warplan,
 )
 from app.security import REMEMBERED_PLAYER_NAME_COOKIE, encode_session_cookie
+from app.services.invites import invite_url
 from app.services.parties import create_party, join_party
 from app.services.players import remove_player_from_party
 from app.services.warplans import save_warplan
@@ -30,6 +31,8 @@ def test_home_page_renders() -> None:
 
     assert response.status_code == 200
     assert b"Coordinate Diablo War Plans" in response.body
+    assert b'class="brand-mark"' in response.body
+    assert b"icons/favicon/icon-512.png" in response.body
     assert b"icons/favicon/favicon.ico" in response.body
     assert b"icons/favicon/site.webmanifest" in response.body
 
@@ -115,6 +118,10 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"0/5 selected" in response.body
     assert b"data-selected-count" in response.body
     assert b"Add War Plan" not in response.body
+    assert b"Open Invite" not in response.body
+    assert f'data-copy="{invite_url(party)}"'.encode() in response.body
+    assert b"Join my Warparty" not in response.body
+    assert b"Invite code:" not in response.body
     assert b"window.confirm" not in response.body
     assert b"window.location.reload" not in response.body
     assert b"/live" in response.body
@@ -177,7 +184,7 @@ def test_warplan_modal_uses_visual_picker_order(db_session) -> None:
     )
 
 
-def test_party_room_hides_leader_remove_when_party_not_full_and_player_not_stale(
+def test_party_room_renders_leader_remove_for_member_slot(
     db_session,
 ) -> None:
     party, leader, token = create_party(db_session, "Cipher")
@@ -197,7 +204,9 @@ def test_party_room_hides_leader_remove_when_party_not_full_and_player_not_stale
     assert response.status_code == 200
     assert b"Make Leader" in response.body
     assert b'id="remove-player-modal"' in response.body
-    assert f"/players/{member.id}/remove".encode() not in response.body
+    assert f"/players/{member.id}/remove".encode() in response.body
+    assert b'aria-label="Remove Landmine"' in response.body
+    assert b"icon-button-danger" in response.body
 
 
 def test_party_room_renders_leader_remove_when_party_is_full(db_session) -> None:

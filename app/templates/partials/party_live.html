@@ -3,15 +3,6 @@
   data-party-live-region
   data-current-player-id="{{ current_player.id if current_player else '' }}"
 >
-  <header class="page-header compact-page-header">
-    {% if current_player %}
-      <div class="page-actions">
-        <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
-        <a class="button-secondary" href="/join/{{ party.invite_code }}">Open Invite</a>
-      </div>
-    {% endif %}
-  </header>
-
   {% if removed_player_notice %}
     <section class="panel notice-panel" data-removed-player-notice>
       <p class="empty-state">{{ removed_player_notice }}</p>
