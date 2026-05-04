@@ -277,15 +277,17 @@
       selected.forEach((key, index) => {
         const meta = activityMeta(key);
         const item = document.createElement("li");
-        item.className = "selected-path-item";
+        item.className = "selected-plan-row";
         item.innerHTML = `
-          <span class="selected-path-level">${index + 1}</span>
-          <img src="${meta.icon}" alt="">
-          <span>${meta.name}</span>
-          <span class="selected-path-actions">
-            <button type="button" aria-label="Move ${meta.name} up" data-move-index="${index}" data-move-direction="-1" ${index === 0 ? "disabled" : ""}>Up</button>
-            <button type="button" aria-label="Move ${meta.name} down" data-move-index="${index}" data-move-direction="1" ${index === selected.length - 1 ? "disabled" : ""}>Down</button>
-            <button type="button" aria-label="Remove ${meta.name}" data-remove-index="${index}">Remove</button>
+          <span class="selected-plan-level">Level ${index + 1}</span>
+          <span class="selected-plan-main">
+            <img src="${meta.icon}" alt="">
+            <strong>${meta.name}</strong>
+          </span>
+          <span class="selected-plan-controls">
+            <button class="button-icon button-icon-secondary" type="button" aria-label="Move ${meta.name} up" title="Move up" data-move-index="${index}" data-move-direction="-1" ${index === 0 ? "disabled" : ""}>^</button>
+            <button class="button-icon button-icon-secondary" type="button" aria-label="Move ${meta.name} down" title="Move down" data-move-index="${index}" data-move-direction="1" ${index === selected.length - 1 ? "disabled" : ""}>v</button>
+            <button class="button-icon button-icon-danger" type="button" aria-label="Remove ${meta.name}" title="Remove" data-remove-index="${index}">x</button>
           </span>
         `;
         selectedList.appendChild(item);

@@ -16,12 +16,12 @@
 </head>
 <body>
   <div class="app-shell">
-    <nav class="app-nav">
-      <a class="brand" href="/">
-        <img class="brand-mark" src="{{ url_for('static', path='icons/favicon/icon-512.png') }}" alt="" width="36" height="36">
-        <span>Warparty</span>
+    <nav class="app-nav" aria-label="Primary">
+      <a class="app-brand" href="/">
+        <img class="app-brand-mark brand-mark" src="{{ url_for('static', path='icons/favicon/icon-512.png') }}" alt="" width="34" height="34">
+        <span class="app-brand-text">Warparty</span>
       </a>
-      <div class="nav-actions">
+      <div class="app-nav-links">
         <a href="/">Create</a>
         <a href="/">Join</a>
       </div>

@@ -1,17 +1,17 @@
 {% if route %}
   <div class="route-list">
     {% for step in route %}
-      <div class="route-row route-card route-card-{{ step.step_type }} {% if step.is_current %}route-card-next{% endif %}">
+      <div class="route-row route-card route-card-{{ step.step_type }} {% if step.is_current %}route-row-current route-card-next{% endif %}" {% if step.is_current %}aria-current="step"{% endif %}>
         <span class="route-step-number">{{ step.step_number }}</span>
-        <img class="activity-icon" src="{{ activity_icon_path(step.activity_key) }}" alt="">
-        <span class="route-activity">
-          {{ step.activity_name }}
+        <img class="activity-icon route-activity-icon" src="{{ activity_icon_path(step.activity_key) }}" alt="">
+        <span class="route-activity-main">
+          <strong class="route-activity-name">{{ step.activity_name }}</strong>
           {% if step.is_current %}
             <span class="status-pill route-current-pill">Current</span>
           {% endif %}
         </span>
         <span class="status-pill route-step-type route-step-{{ step.step_type }}">{{ step.step_type|capitalize }}</span>
-        <span class="route-instruction">{{ step.instruction_text }}</span>
+        <span class="route-instruction">{{ route_instruction(step) }}</span>
       </div>
     {% endfor %}
   </div>

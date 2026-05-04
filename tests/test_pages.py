@@ -31,7 +31,9 @@ def test_home_page_renders() -> None:
 
     assert response.status_code == 200
     assert b"Coordinate Diablo War Plans" in response.body
-    assert b'class="brand-mark"' in response.body
+    assert b'class="app-brand-mark brand-mark"' in response.body
+    assert b'class="form-field"' in response.body
+    assert b'class="action-row form-actions"' in response.body
     assert b"icons/favicon/icon-512.png" in response.body
     assert b"icons/favicon/favicon.ico" in response.body
     assert b"icons/favicon/site.webmanifest" in response.body
@@ -114,7 +116,8 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"Slot 2" in response.body
     assert b"Open" in response.body
     assert b"Share the invite link." in response.body
-    assert b"Click Activities To Add" in response.body
+    assert b"Choose Activities" in response.body
+    assert b"Choose up to 5 activities in order." in response.body
     assert b"Create Plan" in response.body
     assert b"0/5 selected" in response.body
     assert b"data-selected-count" in response.body
@@ -205,9 +208,11 @@ def test_party_room_renders_leader_remove_for_member_slot(
     assert response.status_code == 200
     assert b"Make Leader" in response.body
     assert b'id="remove-player-modal"' in response.body
+    assert b'class="modal-body"' in response.body
+    assert b'class="modal-footer modal-actions"' in response.body
     assert f"/players/{member.id}/remove".encode() in response.body
     assert b'aria-label="Remove Landmine"' in response.body
-    assert b"icon-button-danger" in response.body
+    assert b"button-icon-danger" in response.body
 
 
 def test_party_room_renders_leader_remove_when_party_is_full(db_session) -> None:
@@ -401,6 +406,55 @@ def test_route_marks_current_step(db_session) -> None:
     assert response.status_code == 200
     assert b"route-card-next" in response.body
     assert b"Current" in response.body
+    assert b"/progress/complete" not in response.body
+    assert b"Mark Helltide complete" in response.body
+
+
+def test_current_player_ready_badge_is_hidden_and_plan_levels_are_clickable(
+    db_session,
+) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    save_warplan(db_session, player, ["helltide", "pit", "lair_boss"], progress_index=1)
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(request, party.id, encode_session_cookie(player.id, token), db_session)
+
+    assert response.status_code == 200
+    assert b'<span class="status-pill warning">You</span>' in response.body
+    assert b'<span class="status-pill success">Ready</span>' not in response.body
+    assert response.body.count(b"/progress/set") == 3
+    assert b"Undo Helltide" in response.body
+    assert b"Mark Pit complete" in response.body
+    assert b"Complete through level 3: Lair Boss" in response.body
+    assert b"Undo Last" not in response.body
+
+
+def test_other_ready_player_still_shows_ready_badge(db_session) -> None:
+    party, leader, token = create_party(db_session, "Cipher")
+    _, member, _ = join_party(db_session, party.invite_code, "Landmine")
+    save_warplan(db_session, member, ["helltide"])
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(request, party.id, encode_session_cookie(leader.id, token), db_session)
+
+    assert response.status_code == 200
+    assert b'<span class="status-pill success">Ready</span>' in response.body
 
 
 def test_join_page_full_party_explains_retry(db_session) -> None:

@@ -1,16 +1,18 @@
 <dialog id="remove-player-modal" class="warplan-modal confirm-modal">
   <div class="modal-panel">
     <div class="modal-header">
-      <div>
-        <span class="slot-label">Remove Player</span>
-        <h2>Free this party slot?</h2>
+      <div class="modal-title-group">
+        <span class="slot-label modal-eyebrow">Remove Player</span>
+        <h2 class="modal-title">Free this party slot?</h2>
       </div>
-      <button class="icon-button" type="button" data-cancel-remove-player aria-label="Close">x</button>
+      <button class="button-icon modal-close" type="button" data-cancel-remove-player aria-label="Close Remove Player dialog" title="Close">x</button>
     </div>
-    <p class="modal-copy">
-      <span data-remove-player-name>This player</span> will lose access from this browser session, their War Plan will be removed from the route, and the invite code will change.
-    </p>
-    <div class="action-row modal-actions">
+    <div class="modal-body">
+      <p class="modal-copy">
+        <span data-remove-player-name>This player</span> will lose access from this browser session, their War Plan will be removed from the route, and the invite code will change.
+      </p>
+    </div>
+    <div class="modal-footer modal-actions">
       <button class="button-danger" type="button" data-confirm-remove-player-submit>Remove Player</button>
       <button class="button-secondary" type="button" data-cancel-remove-player>Cancel</button>
     </div>

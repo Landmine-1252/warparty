@@ -7,13 +7,13 @@
   data-progress-index="{{ my_progress }}"
   data-activities='{{ my_activities|tojson }}'
 >
-  <form class="modal-panel pure-form pure-form-stacked" method="post" action="/party/{{ party.id }}/my-warplan">
+  <form class="modal-panel warplan-modal-panel pure-form pure-form-stacked" method="post" action="/party/{{ party.id }}/my-warplan">
     <div class="modal-header">
-      <div>
+      <div class="modal-title-group">
         <span class="slot-label">My War Plan</span>
-        <h2>{{ current_player.display_name }}</h2>
+        <h2 class="modal-title">{{ current_player.display_name }}</h2>
       </div>
-      <button class="icon-button" type="button" data-close-warplan-modal aria-label="Close">x</button>
+      <button class="button-icon modal-close" type="button" data-close-warplan-modal aria-label="Close War Plan editor" title="Close">x</button>
     </div>
 
     <input type="hidden" name="plan_length" value="{{ my_activities|length }}">
@@ -23,12 +23,15 @@
       <input data-activity-input type="hidden" name="activity_{{ index }}" value="{{ my_activities[index - 1] if my_activities|length >= index else '' }}">
     {% endfor %}
 
-    <div class="compact-warplan-builder">
+    <div class="modal-body compact-warplan-builder">
       <div class="builder-header">
-        <h3 class="builder-title">Click Activities To Add</h3>
-        <span class="status-pill" data-selected-count>0/5 selected</span>
+        <div>
+          <h3 class="builder-title">Choose Activities</h3>
+          <p class="helper-text">Choose up to 5 activities in order.</p>
+        </div>
+        <span class="status-pill selected-count-pill" data-selected-count>0/5 selected</span>
       </div>
-      <div class="activity-picker-strip">
+      <div class="activity-picker-grid">
         {% for activity in activity_options %}
           <button
             class="activity-choice"
@@ -38,17 +41,22 @@
             data-activity-name="{{ activity.name }}"
             data-activity-icon="{{ activity_icon_path(activity.key) }}"
           >
-            <img src="{{ activity_icon_path(activity.key) }}" alt="">
+            <img class="activity-choice-icon" src="{{ activity_icon_path(activity.key) }}" alt="">
             <span>{{ activity.name }}</span>
           </button>
         {% endfor %}
       </div>
 
-      <ol class="selected-path-strip" data-selected-path></ol>
-      <p class="selected-path-empty empty-state" data-selected-empty>Click an activity above to build your path.</p>
+      <section class="selected-plan-panel" aria-label="Selected War Plan path">
+        <div class="selected-plan-header">
+          <h3 class="builder-title">Selected Path</h3>
+        </div>
+        <ol class="selected-plan-list" data-selected-path></ol>
+        <p class="selected-path-empty empty-state" data-selected-empty>Click an activity above to build your path.</p>
+      </section>
     </div>
 
-    <div class="action-row modal-actions">
+    <div class="modal-footer">
       <button class="button-primary" type="submit" data-save-warplan>Save Plan</button>
       <button class="button-secondary" type="button" data-close-warplan-modal>Cancel</button>
     </div>

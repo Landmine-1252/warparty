@@ -8,7 +8,7 @@
   </div>
 </header>
 
-<form class="panel pure-form pure-form-stacked narrow-panel" method="post" action="/join">
+<form class="panel home-card pure-form pure-form-stacked narrow-panel" method="post" action="/join">
   <div class="panel-header">
     <h2 class="panel-title">Invite Code {{ invite_code }}</h2>
   </div>
@@ -16,9 +16,11 @@
     <p class="empty-state">{{ error }}</p>
   {% endif %}
   <input type="hidden" name="invite_code" value="{{ invite_code }}">
-  <label for="player-name">Player name</label>
-  <input id="player-name" name="player_name" maxlength="40" required autocomplete="nickname" value="{{ remembered_player_name }}" {% if not party or party_full %}disabled{% endif %}>
-  <div class="action-row">
+  <div class="form-field">
+    <label for="player-name">Player name</label>
+    <input id="player-name" name="player_name" maxlength="40" required autocomplete="nickname" value="{{ remembered_player_name }}" {% if not party or party_full %}disabled{% endif %}>
+  </div>
+  <div class="action-row form-actions">
     {% if party_full %}
       <a class="button-primary" href="/join/{{ invite_code }}">Retry Join</a>
     {% else %}

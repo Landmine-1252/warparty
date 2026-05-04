@@ -491,6 +491,7 @@ def _party_context(
         "activity_options": ACTIVITY_PICKER_ACTIVITIES,
         "activity_name": activity_name,
         "activity_icon_path": activity_icon_path,
+        "route_instruction": _route_instruction,
         "get_activities": get_activities,
         "is_party_leader": is_party_leader,
         "stale_player_ids": stale_player_ids,
@@ -517,11 +518,12 @@ def _next_action(current_player: Any, ready_players: list[Any], route: list[Any]
             "button": None,
         }
     step = route[0]
+    instruction = _route_instruction(step)
     if current_player is None:
         return {
             "state": "readonly",
             "title": f"Next: {step.activity_name}",
-            "message": step.instruction_text,
+            "message": instruction,
             "button": "Join to track progress",
             "step": step,
         }
@@ -529,7 +531,7 @@ def _next_action(current_player: Any, ready_players: list[Any], route: list[Any]
         return {
             "state": "act",
             "title": f"Next: {step.activity_name}",
-            "message": step.instruction_text,
+            "message": instruction,
             "button": f"Mark {step.activity_name} Complete",
             "step": step,
         }
@@ -548,6 +550,31 @@ def _next_action(current_player: Any, ready_players: list[Any], route: list[Any]
         "message": "Refresh after players update their plans.",
         "button": "Refresh",
     }
+
+
+def _route_instruction(step: Any) -> str:
+    advancing_names = tuple(step.advancing_player_names)
+    waiting_names = tuple(step.waiting_player_names)
+    advancing = _join_names(advancing_names)
+    waiting = _join_names(waiting_names)
+    wait_verb = "waits" if len(waiting_names) == 1 else "wait"
+    if step.step_type == "shared" and not waiting_names:
+        return "Everyone progresses together."
+    if step.step_type == "shared":
+        return f"{advancing} progress, {waiting} {wait_verb}."
+    if waiting_names:
+        return f"{advancing} progresses, {waiting} {wait_verb}."
+    return f"{advancing} advances solo."
+
+
+def _join_names(names: tuple[str, ...]) -> str:
+    if not names:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return f"{', '.join(names[:-1])}, and {names[-1]}"
 
 
 def _error_redirect(message: str) -> RedirectResponse:

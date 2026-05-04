@@ -2,19 +2,13 @@
   {% set activities = get_activities(slot_player.warplan) %}
   {% set progress_index = slot_player.warplan.progress_index if slot_player.warplan else 0 %}
   <article class="player-card {% if current_player and current_player.id == slot_player.id %}current-player{% endif %}">
-    <div class="player-header">
-      <div>
+    <div class="player-card-header">
+      <div class="player-card-title">
         <span class="slot-label">Slot {{ slot_player.slot_number }}</span>
         <h3 class="player-name">{{ slot_player.display_name }}</h3>
       </div>
-      <div class="player-meta">
-        {% if is_party_leader and slot_player.id in removable_player_ids %}
-          <form class="remove-player-icon-form" method="post" action="/party/{{ party.id }}/players/{{ slot_player.id }}/remove" data-confirm-remove-player data-player-name="{{ slot_player.display_name }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button class="icon-button icon-button-danger" type="submit" aria-label="Remove {{ slot_player.display_name }}" title="Remove player">x</button>
-          </form>
-        {% endif %}
-        <div class="player-badges">
+      <div class="player-card-status">
+        <div class="player-status-badges">
           {% if party.leader_player_id == slot_player.id %}
             <span class="status-pill success">Leader</span>
           {% endif %}
@@ -24,12 +18,18 @@
           {% if slot_player.id in stale_player_ids %}
             <span class="status-pill status-muted">Stale</span>
           {% endif %}
-          {% if activities %}
+          {% if activities and not (current_player and current_player.id == slot_player.id) %}
             <span class="status-pill success">Ready</span>
-          {% else %}
+          {% elif not activities %}
             <span class="status-pill warning">No Plan</span>
           {% endif %}
         </div>
+        {% if is_party_leader and slot_player.id in removable_player_ids %}
+          <form class="player-card-actions" method="post" action="/party/{{ party.id }}/players/{{ slot_player.id }}/remove" data-confirm-remove-player data-player-name="{{ slot_player.display_name }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="button-icon button-icon-danger" type="submit" aria-label="Remove {{ slot_player.display_name }}" title="Remove player">x</button>
+          </form>
+        {% endif %}
       </div>
     </div>
     {% if activities %}
@@ -56,10 +56,15 @@
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   {% if level <= progress_index %}
                     <input type="hidden" name="progress_index" value="{{ level - 1 }}">
+                    {% set progress_action_label = "Undo " ~ activity_name(activity_key) %}
+                  {% elif level == progress_index + 1 %}
+                    <input type="hidden" name="progress_index" value="{{ level }}">
+                    {% set progress_action_label = "Mark " ~ activity_name(activity_key) ~ " complete" %}
                   {% else %}
                     <input type="hidden" name="progress_index" value="{{ level }}">
+                    {% set progress_action_label = "Complete through level " ~ level ~ ": " ~ activity_name(activity_key) %}
                   {% endif %}
-                  <button class="activity-node level-progress-toggle {{ item_class }}" type="submit">
+                  <button class="activity-node level-progress-toggle {{ item_class }}" type="submit" aria-label="{{ progress_action_label }}" title="{{ progress_action_label }}">
                     {% if level <= progress_index %}
                       <span class="activity-check" aria-hidden="true"></span>
                     {% endif %}
@@ -97,12 +102,12 @@
         {% endfor %}
       </ol>
     {% else %}
-      <div class="empty-state compact-stack">
+      <div class="empty-state compact-stack player-plan-empty">
         <span>No War Plan entered.</span>
       </div>
     {% endif %}
     {% if current_player and (current_player.id == slot_player.id or (is_party_leader and current_player.id != slot_player.id)) %}
-      <div class="action-row">
+      <div class="action-row player-card-footer">
         {% if current_player.id == slot_player.id %}
           <button class="button-secondary" type="button" data-open-warplan-modal>{% if slot_player.warplan %}Edit Plan{% else %}Create Plan{% endif %}</button>
           {% if slot_player.warplan %}
@@ -127,13 +132,17 @@
     {% endif %}
   </article>
 {% else %}
-  <article class="player-card player-card-empty">
-    <span class="slot-label">Slot {{ slot_number }}</span>
-    <h3 class="player-name">Open</h3>
+  <article class="player-card player-card-empty open-slot-card">
+    <div class="player-card-header">
+      <div class="player-card-title">
+        <span class="slot-label">Slot {{ slot_number }}</span>
+        <h3 class="player-name">Open</h3>
+      </div>
+    </div>
     {% if current_player %}
       <p class="open-slot-copy">Share the invite link.</p>
       <div class="action-row">
-        <button class="button-secondary" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
+        <button class="button-secondary button-small" type="button" data-copy="{{ invite_text }}">Copy Invite</button>
       </div>
     {% else %}
       <p class="open-slot-copy">Ask a party member for an invite.</p>
