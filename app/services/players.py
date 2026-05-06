@@ -47,6 +47,15 @@ def _should_update_last_seen(last_seen_at: datetime | None, now: datetime) -> bo
     return now - last_seen_at >= LAST_SEEN_WRITE_INTERVAL
 
 
+def player_is_stale(player: Player, stale_minutes: int, *, now: datetime | None = None) -> bool:
+    last_seen_at = player.last_seen_at
+    if last_seen_at is None:
+        return True
+    if last_seen_at.tzinfo is None:
+        last_seen_at = last_seen_at.replace(tzinfo=UTC)
+    return (now or utcnow()) - last_seen_at > timedelta(minutes=stale_minutes)
+
+
 def remove_player_from_party(
     db: Session,
     party: Party,
@@ -69,6 +78,31 @@ def remove_player_from_party(
     db.commit()
     db.refresh(party)
     db.expire(party, ["players"])
+
+
+def claim_party_leadership(
+    db: Session,
+    party: Party,
+    acting_player: Player,
+    stale_minutes: int,
+) -> Player:
+    if acting_player.party_id != party.id:
+        raise ServiceError("Player was not found in this Warparty.")
+    if party.leader_player_id == acting_player.id:
+        return acting_player
+    if player_is_stale(acting_player, stale_minutes):
+        raise ServiceError("Only an active player can claim leadership.")
+
+    current_leader = (
+        db.get(Player, party.leader_player_id) if party.leader_player_id is not None else None
+    )
+    if current_leader is not None and not player_is_stale(current_leader, stale_minutes):
+        raise ServiceError("The current party leader is still active.")
+
+    party.leader_player_id = acting_player.id
+    db.commit()
+    db.refresh(party)
+    return acting_player
 
 
 def leave_party(db: Session, party: Party, player: Player) -> None:

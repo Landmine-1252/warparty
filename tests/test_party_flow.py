@@ -8,12 +8,15 @@ from app.security import csrf_token_from_cookie, encode_session_cookie, verify_c
 from app.services.errors import ServiceError
 from app.services.parties import create_party, get_party, join_party
 from app.services.players import (
+    claim_party_leadership,
     get_current_player,
     get_player,
     leave_party,
+    player_is_stale,
     remove_player_from_party,
     transfer_party_leader,
 )
+from app.services.routes import recommended_route_for_party
 from app.services.warplans import get_activities, save_warplan
 
 
@@ -36,20 +39,20 @@ def test_create_party_creates_slot_one_player_and_invite_code(db_session) -> Non
 def test_join_fills_next_open_slot(db_session) -> None:
     party, _, _ = create_party(db_session, "Cipher")
     _, player_two, _ = join_party(db_session, party.invite_code, "Landmine")
-    _, player_three, _ = join_party(db_session, party.invite_code, "Shatter")
+    _, player_three, _ = join_party(db_session, party.invite_code, "Kaos")
 
     assert player_two.slot_number == 2
     assert player_three.slot_number == 3
 
 
 def test_full_party_rejects_new_player(db_session) -> None:
-    party, _, _ = create_party(db_session, "One")
-    join_party(db_session, party.invite_code, "Two")
-    join_party(db_session, party.invite_code, "Three")
-    join_party(db_session, party.invite_code, "Four")
+    party, _, _ = create_party(db_session, "Landmine")
+    join_party(db_session, party.invite_code, "Cipher")
+    join_party(db_session, party.invite_code, "Kaos")
+    join_party(db_session, party.invite_code, "Snivfbo")
 
     with pytest.raises(ServiceError):
-        join_party(db_session, party.invite_code, "Five")
+        join_party(db_session, party.invite_code, "Landmine")
 
 
 def test_current_player_can_save_own_warplan(db_session) -> None:
@@ -117,6 +120,15 @@ def test_get_current_player_touches_stale_last_seen(db_session) -> None:
 
     assert current_player == player
     assert _as_utc(current_player.last_seen_at) > stale_last_seen
+
+
+def test_player_is_stale_after_threshold(db_session) -> None:
+    _, player, _ = create_party(db_session, "Cipher")
+    now = datetime.now(UTC)
+
+    player.last_seen_at = now - timedelta(minutes=61)
+
+    assert player_is_stale(player, 60, now=now)
 
 
 def test_csrf_token_is_bound_to_session_and_party(db_session) -> None:
@@ -212,6 +224,39 @@ def test_leader_can_transfer_leadership(db_session) -> None:
     transfer_party_leader(db_session, party, leader, new_leader.id)
 
     assert party.leader_player_id == new_leader.id
+
+
+def test_active_player_can_claim_leadership_when_current_leader_is_stale(db_session) -> None:
+    party, leader, _ = create_party(db_session, "Cipher")
+    _, member, _ = join_party(db_session, party.invite_code, "Landmine")
+    leader.last_seen_at = datetime.now(UTC) - timedelta(hours=2)
+    db_session.commit()
+
+    claim_party_leadership(db_session, party, member, stale_minutes=60)
+
+    assert party.leader_player_id == member.id
+
+
+def test_player_cannot_claim_leadership_when_current_leader_is_active(db_session) -> None:
+    party, _, _ = create_party(db_session, "Cipher")
+    _, member, _ = join_party(db_session, party.invite_code, "Landmine")
+
+    with pytest.raises(ServiceError, match="still active"):
+        claim_party_leadership(db_session, party, member, stale_minutes=60)
+
+
+def test_recommended_route_ignores_stale_players(db_session) -> None:
+    party, stale_player, _ = create_party(db_session, "Cipher")
+    _, active_player, _ = join_party(db_session, party.invite_code, "Landmine")
+    save_warplan(db_session, stale_player, ["helltide"])
+    save_warplan(db_session, active_player, ["pit"])
+    stale_player.last_seen_at = datetime.now(UTC) - timedelta(hours=2)
+    db_session.commit()
+
+    route = recommended_route_for_party(party)
+
+    assert [step.activity_key for step in route] == ["pit"]
+    assert route[0].advancing_player_ids == (active_player.id,)
 
 
 def test_non_leader_cannot_transfer_leadership(db_session) -> None:

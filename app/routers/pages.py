@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode
 
@@ -40,9 +39,11 @@ from app.services.parties import (
     party_is_full,
 )
 from app.services.players import (
+    claim_party_leadership,
     get_current_player,
     get_player,
     leave_party,
+    player_is_stale,
     remove_player_from_party,
     transfer_party_leader,
 )
@@ -454,6 +455,34 @@ async def transfer_leader_page(
     return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/party/{party_id}/leader/claim")
+async def claim_leader_page(
+    party_id: str,
+    csrf_token: str = Form(""),
+    session_cookie: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    party = get_party(db, party_id)
+    current_player = get_current_player(db, party_id, session_cookie)
+    if (
+        party is not None
+        and current_player is not None
+        and verify_csrf_token(session_cookie, party_id, csrf_token)
+    ):
+        try:
+            claim_party_leadership(
+                db,
+                party,
+                current_player,
+                get_settings().stale_player_minutes,
+            )
+        except ServiceError:
+            pass
+        else:
+            await manager.broadcast(party_id, "leader_claimed")
+    return RedirectResponse(f"/party/{party_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
@@ -480,18 +509,28 @@ def _party_context(
         next((player for player in party.players if player.slot_number == slot), None)
         for slot in range(1, MAX_PLAYERS_PER_PARTY + 1)
     ]
-    ready_players = [player for player in party.players if player.warplan is not None]
-    is_party_leader = current_player is not None and party.leader_player_id == current_player.id
     stale_player_ids = {
         player.id
         for player in party.players
-        if _player_is_stale(player, settings.stale_player_minutes)
+        if player_is_stale(player, settings.stale_player_minutes)
     }
+    ready_players = [
+        player
+        for player in party.players
+        if player.warplan is not None and player.id not in stale_player_ids
+    ]
+    is_party_leader = current_player is not None and party.leader_player_id == current_player.id
     removable_player_ids = {
         player.id
         for player in party.players
         if is_party_leader and current_player is not None and player.id != current_player.id
     }
+    can_claim_leadership = (
+        current_player is not None
+        and not is_party_leader
+        and current_player.id not in stale_player_ids
+        and party.leader_player_id in stale_player_ids
+    )
     can_current_player_leave = current_player is not None
     invite_text = invite_url(party)
     return {
@@ -511,6 +550,7 @@ def _party_context(
         "get_activities": get_activities,
         "is_party_leader": is_party_leader,
         "can_current_player_leave": can_current_player_leave,
+        "can_claim_leadership": can_claim_leadership,
         "stale_player_ids": stale_player_ids,
         "removable_player_ids": removable_player_ids,
         "removed_player_notice": removed_player_notice,
@@ -524,7 +564,7 @@ def _next_action(current_player: Any, ready_players: list[Any], route: list[Any]
         return {
             "state": "waiting",
             "title": "Waiting for plans",
-            "message": "Players need to enter War Plans before a shared route can be built.",
+            "message": "Active players need to enter War Plans before a shared route can be built.",
             "button": "Refresh",
         }
     if not route:
@@ -669,15 +709,6 @@ def _join_page_response(
         },
         status_code=status_code,
     )
-
-
-def _player_is_stale(player: Any, stale_minutes: int) -> bool:
-    last_seen_at = player.last_seen_at
-    if last_seen_at is None:
-        return True
-    if last_seen_at.tzinfo is None:
-        last_seen_at = last_seen_at.replace(tzinfo=UTC)
-    return datetime.now(UTC) - last_seen_at > timedelta(minutes=stale_minutes)
 
 
 def _party_access_denied(

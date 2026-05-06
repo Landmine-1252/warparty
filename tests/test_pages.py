@@ -267,7 +267,7 @@ def test_party_room_renders_leader_remove_when_party_is_full(db_session) -> None
     party, leader, token = create_party(db_session, "Cipher")
     join_party(db_session, party.invite_code, "Landmine")
     join_party(db_session, party.invite_code, "Kaos")
-    join_party(db_session, party.invite_code, "Shatter")
+    join_party(db_session, party.invite_code, "Snivfbo")
     request = Request(
         {
             "type": "http",
@@ -304,8 +304,64 @@ def test_party_room_renders_leader_remove_when_player_is_stale(db_session) -> No
     response = party_room(request, party.id, encode_session_cookie(leader.id, token), db_session)
 
     assert response.status_code == 200
-    assert b"Away" in response.body
+    assert b'aria-label="Away"' in response.body
     assert b"data-confirm-remove-player" in response.body
+
+
+def test_party_room_ignores_away_players_in_recommended_route(db_session) -> None:
+    party, away_leader, _ = create_party(db_session, "Cipher")
+    _, active_member, token = join_party(db_session, party.invite_code, "Landmine")
+    save_warplan(db_session, away_leader, ["helltide"])
+    save_warplan(db_session, active_member, ["pit"])
+    away_leader.last_seen_at = datetime.now(UTC) - timedelta(hours=2)
+    db_session.commit()
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(
+        request,
+        party.id,
+        encode_session_cookie(active_member.id, token),
+        db_session,
+    )
+
+    assert response.status_code == 200
+    assert b"Next: Pit" in response.body
+    assert b"Landmine advances" in response.body
+
+
+def test_party_room_renders_take_leader_when_current_leader_is_away(db_session) -> None:
+    party, away_leader, _ = create_party(db_session, "Cipher")
+    _, active_member, token = join_party(db_session, party.invite_code, "Landmine")
+    away_leader.last_seen_at = datetime.now(UTC) - timedelta(hours=2)
+    db_session.commit()
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party.id}",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room(
+        request,
+        party.id,
+        encode_session_cookie(active_member.id, token),
+        db_session,
+    )
+
+    assert response.status_code == 200
+    assert b"Take Leader" in response.body
+    assert f"/party/{party.id}/leader/claim".encode() in response.body
 
 
 def test_party_room_renders_leave_party_for_non_leader(db_session) -> None:
@@ -505,8 +561,8 @@ def test_current_player_ready_badge_is_hidden_and_plan_levels_are_clickable(
     response = party_room(request, party.id, encode_session_cookie(player.id, token), db_session)
 
     assert response.status_code == 200
-    assert b'<span class="status-pill warning">You</span>' in response.body
-    assert b'<span class="status-pill success">Ready</span>' not in response.body
+    assert b'aria-label="You"' in response.body
+    assert b'aria-label="Ready"' not in response.body
     assert response.body.count(b"/progress/set") == 3
     assert b"Undo Helltide" in response.body
     assert b"Mark Pit complete" in response.body
@@ -535,14 +591,14 @@ def test_other_ready_player_still_shows_ready_badge(db_session) -> None:
     response = party_room(request, party.id, encode_session_cookie(leader.id, token), db_session)
 
     assert response.status_code == 200
-    assert b'<span class="status-pill success">Ready</span>' in response.body
+    assert b'aria-label="Ready"' in response.body
 
 
 def test_join_page_full_party_explains_retry(db_session) -> None:
-    party, _, _ = create_party(db_session, "One")
-    join_party(db_session, party.invite_code, "Two")
-    join_party(db_session, party.invite_code, "Three")
-    join_party(db_session, party.invite_code, "Four")
+    party, _, _ = create_party(db_session, "Landmine")
+    join_party(db_session, party.invite_code, "Cipher")
+    join_party(db_session, party.invite_code, "Kaos")
+    join_party(db_session, party.invite_code, "Snivfbo")
     request = Request(
         {
             "type": "http",
@@ -562,10 +618,10 @@ def test_join_page_full_party_explains_retry(db_session) -> None:
 
 
 async def test_join_post_full_party_renders_full_page(db_session) -> None:
-    party, _, _ = create_party(db_session, "One")
-    join_party(db_session, party.invite_code, "Two")
-    join_party(db_session, party.invite_code, "Three")
-    join_party(db_session, party.invite_code, "Four")
+    party, _, _ = create_party(db_session, "Landmine")
+    join_party(db_session, party.invite_code, "Cipher")
+    join_party(db_session, party.invite_code, "Kaos")
+    join_party(db_session, party.invite_code, "Snivfbo")
     request = Request(
         {
             "type": "http",
