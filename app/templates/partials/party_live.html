@@ -1,8 +1,12 @@
+{% set current_activities = get_activities(current_player.warplan) if current_player else [] %}
+{% set current_progress = current_player.warplan.progress_index if current_player and current_player.warplan else 0 %}
 <div
   id="party-live-region"
   data-party-live-region
   data-current-player-id="{{ current_player.id if current_player else '' }}"
   data-can-current-player-leave="{{ 'true' if can_current_player_leave else 'false' }}"
+  data-current-player-activities='{{ current_activities|tojson }}'
+  data-current-player-progress="{{ current_progress }}"
 >
   {% if removed_player_notice %}
     <section class="panel notice-panel" data-removed-player-notice>

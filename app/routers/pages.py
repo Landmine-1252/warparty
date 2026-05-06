@@ -190,7 +190,17 @@ def party_room_live(
 ) -> HTMLResponse:
     party = get_party(db, party_id)
     if party is None:
-        return _error_page(request, "Warparty not found.", status.HTTP_404_NOT_FOUND)
+        return templates.TemplateResponse(
+            request,
+            "partials/party_access_denied.html",
+            {
+                "access_denied_title": "Warparty Ended",
+                "access_denied_message": (
+                    "This Warparty no longer exists. Create a new Warparty or ask for "
+                    "a fresh invite."
+                ),
+            },
+        )
     current_player = get_current_player(db, party_id, session_cookie)
     access_denied = _party_access_denied(current_player, db, party_id, session_cookie)
     if access_denied is not None:

@@ -138,6 +138,10 @@ def test_party_room_renders_current_player_warplan_modal(db_session) -> None:
     assert b"Invite code:" not in response.body
     assert b"window.confirm" not in response.body
     assert b"window.location.reload" not in response.body
+    assert b"liveRefreshIntervalMs = 30000" in response.body
+    assert b"setInterval(queuePartyRefresh" in response.body
+    assert b"syncWarplanModalFromLiveRegion" in response.body
+    assert b"clearInterval" in response.body
     assert b"/live" in response.body
 
 
@@ -163,9 +167,42 @@ def test_party_room_live_renders_refresh_fragment_without_modal(db_session) -> N
 
     assert response.status_code == 200
     assert b"data-party-live-region" in response.body
+    assert b"data-current-player-activities" in response.body
+    assert b"helltide" in response.body
+    assert b"pit" in response.body
+    assert b'data-current-player-progress="0"' in response.body
     assert b"Player War Plans" in response.body
     assert b'id="warplan-modal"' not in response.body
     assert b"<script>" not in response.body
+
+
+def test_party_room_live_deleted_party_gets_notice_without_full_error_page(db_session) -> None:
+    party, player, token = create_party(db_session, "Cipher")
+    party_id = party.id
+    player_id = player.id
+    leave_party(db_session, party, player)
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": f"/party/{party_id}/live",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = party_room_live(
+        request,
+        party_id,
+        encode_session_cookie(player_id, token),
+        db_session,
+    )
+
+    assert response.status_code == 200
+    assert b"data-party-access-denied" in response.body
+    assert b"Warparty Ended" in response.body
+    assert b"data-party-live-region" in response.body
+    assert b"Something Went Wrong" not in response.body
 
 
 def test_warplan_modal_uses_visual_picker_order(db_session) -> None:

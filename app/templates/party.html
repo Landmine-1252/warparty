@@ -294,6 +294,7 @@
     });
   }
 
+  let syncWarplanModalFromLiveRegion = () => {};
   const modal = document.querySelector("#warplan-modal");
   if (modal) {
     const closeButtons = modal.querySelectorAll("[data-close-warplan-modal]");
@@ -306,8 +307,18 @@
     const hiddenInputs = Array.from(modal.querySelectorAll("[data-activity-input]"));
     const selectedCount = modal.querySelector("[data-selected-count]");
     const maxLength = Number(modal.dataset.maxLength);
-    const existingProgress = Number(modal.dataset.progressIndex);
-    let selected = JSON.parse(modal.dataset.activities || "[]");
+    let existingProgress = Number(modal.dataset.progressIndex);
+
+    function parseActivities(rawActivities) {
+      try {
+        const activities = JSON.parse(rawActivities || "[]");
+        return Array.isArray(activities) ? activities : [];
+      } catch {
+        return [];
+      }
+    }
+
+    let selected = parseActivities(modal.dataset.activities);
 
     function activityMeta(key) {
       const button = choices.find((choice) => choice.dataset.activityKey === key);
@@ -369,6 +380,20 @@
       });
     }
 
+    syncWarplanModalFromLiveRegion = (liveRegion) => {
+      if (!liveRegion || modal.open) {
+        return;
+      }
+      selected = parseActivities(liveRegion.dataset.currentPlayerActivities);
+      existingProgress = Number(liveRegion.dataset.currentPlayerProgress || "0");
+      if (!Number.isFinite(existingProgress) || existingProgress < 0) {
+        existingProgress = 0;
+      }
+      modal.dataset.activities = JSON.stringify(selected);
+      modal.dataset.progressIndex = String(existingProgress);
+      renderSelected();
+    };
+
     choices.forEach((choice) => {
       choice.addEventListener("click", () => {
         if (selected.length < maxLength) {
@@ -382,6 +407,9 @@
       if (event.target === modal) {
         modal.close();
       }
+    });
+    modal.addEventListener("close", () => {
+      syncWarplanModalFromLiveRegion(document.querySelector("[data-party-live-region]"));
     });
     renderSelected();
   }
@@ -428,13 +456,14 @@
     liveRegion.replaceWith(nextLiveRegion);
     bindPartyContent(nextLiveRegion);
     syncNavLeaveForm(nextLiveRegion);
+    if (hasCurrentPlayer) {
+      syncWarplanModalFromLiveRegion(nextLiveRegion);
+    }
 
     if (hadCurrentPlayer && !hasCurrentPlayer) {
       closeOpenDialogs();
       removeModalRegion();
-      if (ws) {
-        ws.close();
-      }
+      stopRealtimeUpdates();
       showToast("Your party access changed.");
     }
   }
@@ -443,6 +472,22 @@
   let refreshInFlight = false;
   let pendingRefresh = false;
   let ws = null;
+  let liveRefreshIntervalId = null;
+  const liveRefreshIntervalMs = 30000;
+
+  function stopRealtimeUpdates() {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = null;
+    pendingRefresh = false;
+    if (liveRefreshIntervalId !== null) {
+      window.clearInterval(liveRefreshIntervalId);
+      liveRefreshIntervalId = null;
+    }
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+  }
 
   async function refreshPartyLive() {
     if (refreshInFlight) {
@@ -551,6 +596,7 @@
       queuePartyRefresh();
     }
   });
+  liveRefreshIntervalId = window.setInterval(queuePartyRefresh, liveRefreshIntervalMs);
 })();
 </script>
 {% endblock %}
